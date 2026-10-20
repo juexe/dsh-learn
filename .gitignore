@@ -13,6 +13,9 @@ deepseek-harness/
 # Local overrides of repo-root.json (absolute machine-specific paths).
 repo-root.local.json
 
+# Agent instructions are local guidance, never published with this repository.
+AGENTS.md
+
 # Editor and OS noise
 .vscode/
 .idea/
