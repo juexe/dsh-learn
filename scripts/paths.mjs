@@ -25,8 +25,11 @@ export function repoRoot() {
   if (flagIndex !== -1 && fromArgv[flagIndex + 1] !== undefined) candidates.push(fromArgv[flagIndex + 1])
   if (process.env.DSH_REPO_ROOT) candidates.push(process.env.DSH_REPO_ROOT)
 
-  const configFile = join(projectDir, 'repo-root.json')
-  if (existsSync(configFile)) {
+  // `repo-root.local.json` is the gitignored override for a machine-specific
+  // absolute path; it wins over the committed relative default.
+  for (const name of ['repo-root.local.json', 'repo-root.json']) {
+    const configFile = join(projectDir, name)
+    if (!existsSync(configFile)) continue
     const configured = JSON.parse(readFileSync(configFile, 'utf8'))
     if (typeof configured.root === 'string') candidates.push(configured.root)
   }
@@ -39,7 +42,7 @@ export function repoRoot() {
 
   throw new Error(
     'dsh-learn: no repository root configured. Pass `--root <path>`, set DSH_REPO_ROOT, '
-    + `or write { "root": "<path>" } to ${configFile}`)
+    + `or write { "root": "<path>" } to ${join(projectDir, 'repo-root.json')}`)
 }
 
 /** Absolute path inside this project. */
