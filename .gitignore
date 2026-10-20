@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Generated analysis intermediates. `pnpm build` recreates them from the
+# analysed checkout, so they carry no reviewable information of their own.
+data/
+
+# The analysed harness checkout, if someone configures it at the default
+# relative location inside this project instead of pointing repo-root.json
+# at a sibling directory.
+deepseek-harness/
+
+# Local overrides of repo-root.json (absolute machine-specific paths).
+repo-root.local.json
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+pnpm-debug.log*
+temp/
+
+# Browser-automation artefacts produced while verifying the page.
+.playwright-cli/

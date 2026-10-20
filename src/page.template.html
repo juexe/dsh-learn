@@ -1,0 +1,1234 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>packages 包依赖图</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #fbfbfc;
+    --panel: #ffffff;
+    --line: #e4e6eb;
+    --ink: #1f2328;
+    --muted: #6b7280;
+    --accent: #3b5bdb;
+    --accent-soft: #e7ecfb;
+    --pkg: #ffffff;
+    --pkg-stroke: #b9c2d6;
+    --grp: #f4f1fb;
+    --grp-stroke: #c9bde8;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    font-size: 13px;
+    overflow: hidden;
+  }
+  #app { display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100%; }
+
+  /* ---------------------------------------------------------- sidebar */
+  #sidebar {
+    border-right: 1px solid var(--line);
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .brand { padding: 16px 16px 8px; font-size: 15px; font-weight: 650; }
+  .brand small { display: block; font-weight: 400; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  #search {
+    margin: 8px 12px 10px;
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    font: inherit;
+    background: #fff;
+  }
+  #search:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  #groupList { overflow: auto; flex: 1; padding: 0 8px 16px; }
+  .groupItem {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; padding: 6px 8px; border: 0; background: none;
+    border-radius: 6px; font: inherit; color: inherit; cursor: pointer; text-align: left;
+  }
+  .groupItem:hover { background: #f2f4f8; }
+  .groupItem.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .groupItem .count { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 400; }
+  .groupItem.active .count { color: var(--accent); }
+  .groupHead { padding: 10px 8px 4px; font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+
+  /* ------------------------------------------------------------- main */
+  main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  header {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  #crumbs { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  #crumbs button {
+    border: 0; background: none; font: inherit; color: var(--accent);
+    cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 2px;
+  }
+  #stats { color: var(--muted); font-size: 12px; }
+  .tools { margin-left: auto; display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; }
+  .tools label { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+  .tools select, .tools button {
+    font: inherit; color: inherit; background: #fff;
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; cursor: pointer;
+  }
+  .tools button:hover, .tools select:hover { border-color: #b9c0cc; }
+
+  #canvasWrap { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  #canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+  #canvas.dragging { cursor: grabbing; }
+  #legend {
+    position: absolute; left: 14px; bottom: 12px;
+    background: rgba(255,255,255,.92); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; font-size: 11.5px; color: var(--muted); line-height: 1.9; pointer-events: none;
+  }
+  #legend b { color: var(--ink); font-weight: 600; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+  #hint {
+    position: absolute; right: 14px; bottom: 12px; color: var(--muted); font-size: 11.5px;
+    background: rgba(255,255,255,.92); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px;
+  }
+
+  /* ---------------------------------------------------------- details */
+  #details {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 340px;
+    background: var(--panel); border-left: 1px solid var(--line);
+    padding: 16px; overflow: auto; box-shadow: -8px 0 24px rgba(15,20,40,.06);
+  }
+  #details h2 { font-size: 14px; margin: 0 0 2px; word-break: break-all; }
+  #details .sub { color: var(--muted); font-size: 12px; margin-bottom: 12px; word-break: break-all; }
+  #details p { margin: 0 0 12px; color: #374151; line-height: 1.65; font-size: 12.5px; }
+  #details h3 {
+    font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted);
+    margin: 16px 0 6px; font-weight: 600;
+  }
+  .chipList { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    border: 1px solid var(--line); background: #fff; border-radius: 6px;
+    padding: 2px 7px; font: inherit; font-size: 11.5px; cursor: pointer; color: #374151;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip.optional { border-style: dashed; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+  .closeBtn {
+    position: absolute; top: 10px; right: 10px; border: 0; background: none;
+    font-size: 16px; line-height: 1; color: var(--muted); cursor: pointer; padding: 4px;
+  }
+  body.with-details #details { display: block; }
+
+  /* --------------------------------------------------------- registry */
+  #registry {
+    position: absolute; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; min-height: 0; z-index: 5;
+  }
+  #registryHeader {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  #registryHeader h2 { font-size: 14px; margin: 0; }
+  #registryHeader .muted { color: var(--muted); font-size: 12px; }
+  #registryHeader input[type=search] {
+    margin-left: auto; padding: 6px 10px; border: 1px solid var(--line);
+    border-radius: 7px; font: inherit; min-width: 220px;
+  }
+  #registryBody { overflow: auto; padding: 0 16px 24px; }
+  #registryBody table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  #registryBody th {
+    position: sticky; top: 0; background: var(--panel); text-align: left;
+    font-weight: 600; color: var(--muted); font-size: 11px; letter-spacing: .04em;
+    padding: 8px 10px; border-bottom: 1px solid var(--line); z-index: 1;
+  }
+  #registryBody td { padding: 7px 10px; border-bottom: 1px solid #f0f0f3; vertical-align: top; }
+  #registryBody tr.pkgRow { cursor: pointer; }
+  #registryBody tr.pkgRow:hover td { background: #f7f9fc; }
+  #registryBody .pkgName { font-weight: 600; }
+  #registryBody .groupTag { color: var(--muted); font-size: 11.5px; }
+  .regChip {
+    display: inline-block; border-radius: 5px; padding: 1px 6px; margin: 1px 3px 1px 0;
+    font-size: 11.5px; border: 1px solid var(--line); background: #fff; white-space: nowrap;
+    font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, monospace;
+    word-break: break-all;
+  }
+  .regChip.tool { border-color: #b9c9e8; background: #f2f6fd; color: #2b4b8f; }
+  .regChip.section { border-color: #c9bde8; background: #f7f4fd; color: #5a4494; }
+  .regChip.context { border-color: #b8dcc9; background: #f2fbf6; color: #2d6b4c; }
+  .regChip.config { border-style: dashed; }
+  .regChip.dynamic { border-color: #e0c9a8; background: #fdf8f1; color: #8a5a1f; }
+  .regEmpty { color: #b0b6c2; }
+  .legendInline { display: flex; gap: 12px; color: var(--muted); font-size: 11.5px; }
+
+  /* ------------------------------------------------------------ nodes */
+  .node { cursor: pointer; }
+  .node rect { fill: var(--pkg); stroke: var(--pkg-stroke); stroke-width: 1.2; rx: 7; }
+  .node.pkg rect { rx: 7; }
+  .node.group rect { fill: var(--grp); stroke: var(--grp-stroke); stroke-width: 1.4; stroke-dasharray: 5 3; }
+  .node .label { font-size: 12px; font-weight: 550; fill: #1f2328; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  .node .badge { font-size: 10px; fill: var(--muted); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  .node:hover rect { stroke: var(--accent); stroke-width: 1.8; }
+  .node.sel rect { stroke: var(--accent); stroke-width: 2.2; fill: var(--accent-soft); }
+  .edge { fill: none; stroke: #b6bed0; stroke-width: 1.2; }
+  .edge.optional { stroke-dasharray: 4 3; }
+  .edge.strong { stroke: #93a0bb; }
+  .dim { opacity: .13; }
+  .hot rect { stroke: var(--accent); stroke-width: 2; }
+  .edge.hot { stroke: var(--accent); stroke-width: 2.2; }
+
+  @media (max-width: 900px) {
+    #app { grid-template-columns: 0 minmax(0, 1fr); }
+    #sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand">packages 包依赖<small id="totals"></small></div>
+    <input id="search" type="search" placeholder="搜索包或分组…" autocomplete="off">
+    <div id="groupList"></div>
+  </aside>
+
+  <main>
+    <header>
+      <div id="crumbs"></div>
+      <div id="stats"></div>
+      <div class="tools">
+        <label for="threshold" id="thresholdWrap" hidden>边阈值
+          <select id="threshold">
+            <option value="1">全部</option>
+            <option value="2" selected>≥ 2</option>
+            <option value="4">≥ 4</option>
+            <option value="8">≥ 8</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="outToggle" checked> 对外依赖</label>
+        <label><input type="checkbox" id="inToggle" checked> 被依赖</label>
+        <label><input type="checkbox" id="optToggle" checked> 可选依赖</label>
+        <button id="fit">适应窗口</button>
+        <button id="registryBtn">注册清单</button>
+      </div>
+    </header>
+    <div id="canvasWrap">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#b6bed0"></path>
+          </marker>
+          <marker id="arrowHot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b5bdb"></path>
+          </marker>
+        </defs>
+        <g id="viewport"></g>
+      </svg>
+      <div id="legend">
+        <div id="legendPkg"><span class="swatch" style="background:#fff;border:1px solid #b9c2d6"></span><b>包</b>（组内）</div>
+        <div id="legendGrp"><span class="swatch" style="background:#f4f1fb;border:1px dashed #c9bde8"></span><b>分组</b>（组外折叠）</div>
+        <div id="legendThreshold"><span class="swatch" style="background:transparent;border-top:2px solid #93a0bb;height:2px;border-radius:0"></span>线越粗边越多</div>
+        <div><span class="swatch" style="background:transparent;border-top:2px dashed #b6bed0;height:2px;border-radius:0"></span>虚线 可选依赖</div>
+      </div>
+      <div id="hint">滚轮缩放 · 拖拽平移 · 单击节点查看详情</div>
+      <section id="registry" hidden>
+        <div id="registryHeader">
+          <h2>注册清单</h2>
+          <span class="muted" id="registryStats"></span>
+          <div class="legendInline">
+            <span><span class="regChip tool">工具</span> ctx.tools.register</span>
+            <span><span class="regChip section">section</span> systemPrompt.section</span>
+            <span><span class="regChip context">上下文</span> systemPrompt.context</span>
+            <span><span class="regChip dynamic">动态</span> 运行期决定名称</span>
+          </div>
+          <input type="search" id="registrySearch" placeholder="过滤包名、工具名或 section 名…" autocomplete="off">
+          <button id="registryClose">返回依赖图</button>
+        </div>
+        <div id="registryBody"></div>
+      </section>
+    </div>
+    <aside id="details" hidden></aside>
+  </main>
+</div>
+
+<script id="graph-data" type="application/json">__DATA__</script>
+<script>
+(function () {
+  'use strict'
+
+  var DATA = JSON.parse(document.getElementById('graph-data').textContent)
+  var GROUP_SIZE = new Map(DATA.groups.map(function (g) { return [g.group, g.packages.length] }))
+  var PKG_GROUP = new Map()
+  DATA.groups.forEach(function (g) {
+    g.packages.forEach(function (p) { PKG_GROUP.set(p.short, g.group) })
+  })
+
+  var state = {
+    view: { kind: 'overview' },
+    selected: null,
+    showOptional: true,
+    showOutward: true,
+    showInward: true,
+    threshold: 2,
+    query: '',
+    transform: { x: 0, y: 0, k: 1 }
+  }
+
+  var els = {
+    sidebar: document.getElementById('sidebar'),
+    search: document.getElementById('search'),
+    groupList: document.getElementById('groupList'),
+    totals: document.getElementById('totals'),
+    crumbs: document.getElementById('crumbs'),
+    stats: document.getElementById('stats'),
+    thresholdWrap: document.getElementById('thresholdWrap'),
+    threshold: document.getElementById('threshold'),
+    optToggle: document.getElementById('optToggle'),
+    outToggle: document.getElementById('outToggle'),
+    inToggle: document.getElementById('inToggle'),
+    fit: document.getElementById('fit'),
+    svg: document.getElementById('canvas'),
+    viewport: document.getElementById('viewport'),
+    details: document.getElementById('details'),
+    wrap: document.getElementById('canvasWrap'),
+    legendPkg: document.getElementById('legendPkg'),
+    legendGrp: document.getElementById('legendGrp'),
+    legendThreshold: document.getElementById('legendThreshold'),
+    registry: document.getElementById('registry'),
+    registryBody: document.getElementById('registryBody'),
+    registryStats: document.getElementById('registryStats'),
+    registrySearch: document.getElementById('registrySearch'),
+    registryClose: document.getElementById('registryClose'),
+    registryBtn: document.getElementById('registryBtn')
+  }
+
+  var registryQuery = ''
+
+  var ctx = document.createElement('canvas').getContext('2d')
+  ctx.font = '600 12px system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif'
+
+  var NODE_H = 28
+  var GAP_Y = 9
+  var LAYER_GAP = 96
+  var COL_GAP = 18
+  var MAX_PER_COL = 20
+
+  /* ------------------------------------------------------------ model */
+
+  function findGroup(name) {
+    return DATA.groups.find(function (g) { return g.group === name })
+  }
+
+  function nodeWidth(label, kind) {
+    var w = ctx.measureText(label).width
+    return Math.ceil(w * 1.06) + 30 + (kind === 'group' ? 4 : 0)
+  }
+
+  function buildGraph() {
+    var nodes = []
+    var edges = []
+    if (state.view.kind === 'overview') {
+      DATA.overview.nodes.forEach(function (n) {
+        nodes.push({
+          id: 'g:' + n.group,
+          kind: 'group',
+          label: n.group,
+          meta: { group: n.group, size: n.size, fanIn: n.fanIn, fanOut: n.fanOut },
+          width: nodeWidth(n.group, 'group')
+        })
+      })
+      DATA.overview.edges.forEach(function (e) {
+        var from = DATA.overview.nodes[e.from]
+        var to = DATA.overview.nodes[e.to]
+        edges.push({
+          from: 'g:' + from.group,
+          to: 'g:' + to.group,
+          count: e.count,
+          optional: false,
+          title: from.group + ' → ' + to.group + '：' + e.count + ' 条（' + e.names.slice(0, 12).join('、') + (e.names.length > 12 ? ' 等' : '') + '）'
+        })
+      })
+      return { nodes: nodes, edges: edges }
+    }
+
+    var view = findGroup(state.view.group)
+    var memberSet = new Set(view.packages.map(function (p) { return p.short }))
+
+    view.packages.forEach(function (p) {
+      nodes.push({
+        id: 'p:' + p.short,
+        kind: 'pkg',
+        label: p.short,
+        meta: { pkg: p },
+        width: nodeWidth(p.short, 'pkg')
+      })
+    })
+    view.externalGroups.forEach(function (name) {
+      nodes.push({
+        id: 'g:' + name,
+        kind: 'group',
+        label: name,
+        meta: { group: name, size: GROUP_SIZE.get(name) },
+        width: nodeWidth(name, 'group')
+      })
+    })
+
+    view.intra.forEach(function (e) {
+      edges.push({
+        from: 'p:' + e.from,
+        to: 'p:' + e.to,
+        kind: 'intra',
+        count: 1,
+        optional: e.optional,
+        title: e.from + ' → ' + e.to + (e.optional ? '（可选）' : '')
+      })
+    })
+    view.outward.forEach(function (e) {
+      if (!memberSet.has(e.from)) return
+      edges.push({
+        from: 'p:' + e.from,
+        to: 'g:' + e.group,
+        kind: 'outward',
+        count: e.names.length,
+        optional: e.optional === e.names.length,
+        optionalCount: e.optional,
+        title: e.from + ' → ' + e.group + '：' + e.names.length + ' 条（' + e.names.join('、') + '）'
+      })
+    })
+    view.inward.forEach(function (e) {
+      edges.push({
+        from: 'g:' + e.group,
+        to: 'p:' + e.to,
+        kind: 'inward',
+        count: e.names.length,
+        optional: e.optional === e.names.length,
+        optionalCount: e.optional,
+        title: e.group + ' → ' + e.to + '：' + e.names.length + ' 条（' + e.names.join('、') + '）'
+      })
+    })
+    return { nodes: nodes, edges: edges }
+  }
+
+  /* ----------------------------------------------------------- layout */
+
+  function stronglyConnected(ids, edges) {
+    var index = 0
+    var indices = new Map()
+    var low = new Map()
+    var stack = []
+    var onStack = new Set()
+    var comps = []
+    var adj = new Map(ids.map(function (id) { return [id, []] }))
+    edges.forEach(function (e) { if (adj.has(e.from)) adj.get(e.from).push(e.to) })
+
+    function visit(v) {
+      indices.set(v, index)
+      low.set(v, index)
+      index += 1
+      stack.push(v)
+      onStack.add(v)
+      var out = adj.get(v) || []
+      for (var i = 0; i < out.length; i += 1) {
+        var w = out[i]
+        if (!adj.has(w)) continue
+        if (!indices.has(w)) {
+          visit(w)
+          low.set(v, Math.min(low.get(v), low.get(w)))
+        } else if (onStack.has(w)) {
+          low.set(v, Math.min(low.get(v), indices.get(w)))
+        }
+      }
+      if (low.get(v) === indices.get(v)) {
+        var comp = []
+        var node
+        do {
+          node = stack.pop()
+          onStack.delete(node)
+          comp.push(node)
+        } while (node !== v)
+        comps.push(comp)
+      }
+    }
+    ids.forEach(function (id) { if (!indices.has(id)) visit(id) })
+    return comps
+  }
+
+  /** Longest-path layering over the condensation; dependencies end up leftmost. */
+  function layering(nodes, edges) {
+    var ids = nodes.map(function (n) { return n.id })
+    var idSet = new Set(ids)
+    var comps = stronglyConnected(ids, edges)
+    var compOf = new Map()
+    comps.forEach(function (c, i) { c.forEach(function (id) { compOf.set(id, i) }) })
+
+    var consumers = comps.map(function () { return [] })
+    var dependencyCount = new Map(comps.map(function (_, i) { return [i, 0] }))
+    var seen = new Set()
+    edges.forEach(function (e) {
+      if (!idSet.has(e.from) || !idSet.has(e.to)) return
+      var a = compOf.get(e.from)
+      var b = compOf.get(e.to)
+      if (a === b) return
+      var key = a + '>' + b
+      if (seen.has(key)) return
+      seen.add(key)
+      consumers[b].push(a)
+      dependencyCount.set(a, dependencyCount.get(a) + 1)
+    })
+
+    var layer = new Map(comps.map(function (_, i) { return [i, 0] }))
+    var queue = []
+    comps.forEach(function (_, i) { if (dependencyCount.get(i) === 0) queue.push(i) })
+    var guard = 0
+    while (queue.length > 0 && guard < comps.length * comps.length + 10) {
+      guard += 1
+      var c = queue.shift()
+      consumers[c].forEach(function (p) {
+        layer.set(p, Math.max(layer.get(p), layer.get(c) + 1))
+        dependencyCount.set(p, dependencyCount.get(p) - 1)
+        if (dependencyCount.get(p) === 0) queue.push(p)
+      })
+    }
+
+    var byId = new Map(nodes.map(function (n) { return [n.id, n] }))
+    var bucket = new Map()
+    ids.forEach(function (id) {
+      var l = layer.get(compOf.get(id))
+      if (!bucket.has(l)) bucket.set(l, [])
+      bucket.get(l).push(id)
+    })
+    return { byId: byId, bucket: bucket, layerMax: Math.max.apply(null, Array.from(bucket.keys())) }
+  }
+
+  /** Order each layer by the barycenter of its neighbours to reduce crossings. */
+  function orderLayers(bucket, edges, layerMax) {
+    var layers = []
+    for (var l = 0; l <= layerMax; l += 1) layers.push(bucket.get(l) || [])
+
+    var neighbors = new Map()
+    function addAdj(key, value) {
+      if (!neighbors.has(key)) neighbors.set(key, [])
+      neighbors.get(key).push(value)
+    }
+    edges.forEach(function (e) {
+      addAdj(e.from, e.to)
+      addAdj(e.to, e.from)
+    })
+
+    var position = new Map()
+    layers.forEach(function (layer) {
+      layer.sort(function (a, b) { return a.localeCompare(b) })
+      layer.forEach(function (id, i) { position.set(id, i / Math.max(1, layer.length - 1)) })
+    })
+
+    for (var sweep = 0; sweep < 4; sweep += 1) {
+      var forward = sweep % 2 === 0
+      var indices = forward
+        ? Array.from({ length: layers.length }, function (_, i) { return i })
+        : Array.from({ length: layers.length }, function (_, i) { return layers.length - 1 - i })
+      indices.forEach(function (li) {
+        var layer = layers[li]
+        var score = new Map()
+        layer.forEach(function (id) {
+          var list = neighbors.get(id) || []
+          var sum = 0
+          var n = 0
+          list.forEach(function (other) {
+            if (!position.has(other)) return
+            sum += position.get(other)
+            n += 1
+          })
+          score.set(id, n === 0 ? position.get(id) : sum / n)
+        })
+        layer.sort(function (a, b) {
+          var d = score.get(a) - score.get(b)
+          return d !== 0 ? d : a.localeCompare(b)
+        })
+        layer.forEach(function (id, i) { position.set(id, i / Math.max(1, layer.length - 1)) })
+      })
+    }
+    return layers
+  }
+
+  function layout(nodes, edges) {
+    var layered = layering(nodes, edges)
+    var layers = orderLayers(layered.bucket, edges, layered.layerMax)
+
+    var placed = new Map()
+    var x = 0
+    layers.forEach(function (layer) {
+      if (layer.length === 0) return
+      var columns = []
+      for (var i = 0; i < layer.length; i += MAX_PER_COL) columns.push(layer.slice(i, i + MAX_PER_COL))
+      var columnWidths = columns.map(function (column) {
+        return Math.max.apply(null, column.map(function (id) { return layered.byId.get(id).width }))
+      })
+      var maxColumnHeight = Math.max.apply(null, columns.map(function (column) {
+        return column.length * NODE_H + (column.length - 1) * GAP_Y
+      }))
+      columns.forEach(function (column, ci) {
+        var height = column.length * NODE_H + (column.length - 1) * GAP_Y
+        var startY = (maxColumnHeight - height) / 2
+        var cx = x + columnWidths.slice(0, ci).reduce(function (a, b) { return a + b + COL_GAP }, 0)
+        column.forEach(function (id, i) {
+          var node = layered.byId.get(id)
+          node.x = cx
+          node.y = startY + i * (NODE_H + GAP_Y)
+          placed.set(id, node)
+        })
+      })
+      x += columnWidths.reduce(function (a, b) { return a + b + COL_GAP }, 0)
+      x += LAYER_GAP
+    })
+    return placed
+  }
+
+  /* ----------------------------------------------------------- render */
+
+  var current = null
+
+  function svgEl(name, attrs) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', name)
+    if (attrs) Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]) })
+    return el
+  }
+
+  function edgePath(a, b) {
+    var ax = a.x + a.width / 2
+    var ay = a.y + NODE_H / 2
+    var bx = b.x + b.width / 2
+    var by = b.y + NODE_H / 2
+    var sameColumn = Math.abs(ax - bx) < 4
+    var dir = bx > ax ? 1 : -1
+    var sx, sy, tx, ty, c1x, c1y, c2x, c2y
+    if (sameColumn) {
+      var side = by >= ay ? 1 : -1
+      sx = ax
+      sy = ay + side * (NODE_H / 2)
+      tx = bx
+      ty = by - side * (NODE_H / 2)
+      c1x = sx + 60 * (b.x >= a.x ? 1 : -1)
+      c1y = sy + side * 36
+      c2x = tx + 60 * (b.x >= a.x ? 1 : -1)
+      c2y = ty - side * 36
+    } else {
+      sx = ax + dir * (a.width / 2)
+      sy = ay
+      tx = bx - dir * (b.width / 2)
+      ty = by
+      var offset = Math.max(40, Math.abs(tx - sx) * 0.45)
+      c1x = sx + dir * offset
+      c1y = sy
+      c2x = tx - dir * offset
+      c2y = ty
+    }
+    return 'M ' + sx + ' ' + sy + ' C ' + c1x + ' ' + c1y + ', ' + c2x + ' ' + c2y + ', ' + tx + ' ' + ty
+  }
+
+  function render() {
+    var graph = buildGraph()
+    var placed = layout(graph.nodes, graph.edges)
+
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    placed.forEach(function (n) {
+      minX = Math.min(minX, n.x)
+      minY = Math.min(minY, n.y)
+      maxX = Math.max(maxX, n.x + n.width)
+      maxY = Math.max(maxY, n.y + NODE_H)
+    })
+    if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 100; maxY = 100 }
+
+    els.viewport.textContent = ''
+    var edgeLayer = svgEl('g')
+    var nodeLayer = svgEl('g')
+    els.viewport.appendChild(edgeLayer)
+    els.viewport.appendChild(nodeLayer)
+
+    var edgeEls = []
+    var nodeEls = new Map()
+    var byId = new Map()
+
+    graph.edges.forEach(function (e) {
+      var a = placed.get(e.from)
+      var b = placed.get(e.to)
+      if (!a || !b) return
+      var path = svgEl('path', { d: edgePath(a, b), class: 'edge' + (e.optional ? ' optional' : '') + (e.count > 1 ? ' strong' : ''), 'marker-end': 'url(#arrow)' })
+      if (e.count > 1) path.setAttribute('stroke-width', String(Math.min(3, 1 + Math.log2(e.count) * 0.55)))
+      var title = svgEl('title')
+      title.textContent = e.title
+      path.appendChild(title)
+      edgeLayer.appendChild(path)
+      edgeEls.push({ el: path, edge: e })
+    })
+
+    graph.nodes.forEach(function (n) {
+      var p = placed.get(n.id)
+      if (!p) return
+      var g = svgEl('g', { class: 'node ' + n.kind, transform: 'translate(' + p.x + ',' + p.y + ')' })
+      g.appendChild(svgEl('rect', { width: n.width, height: NODE_H, rx: 7 }))
+      var label = svgEl('text', { class: 'label', x: n.width / 2, y: NODE_H / 2 })
+      label.textContent = n.label
+      g.appendChild(label)
+      var tip = svgEl('title')
+      tip.textContent = n.kind === 'group'
+        ? n.meta.group + '（' + n.meta.size + ' 个包）'
+        : n.meta.pkg.name + ' · ' + n.meta.pkg.version + '\n' + n.meta.pkg.description
+      g.appendChild(tip)
+      g.addEventListener('mouseenter', function () { highlight(n.id, true) })
+      g.addEventListener('mouseleave', function () { highlight(n.id, false) })
+      g.__node = n
+      nodeLayer.appendChild(g)
+      nodeEls.set(n.id, g)
+      byId.set(n.id, n)
+    })
+
+    current = { graph: graph, placed: placed, nodeEls: nodeEls, edgeEls: edgeEls, byId: byId, bbox: { minX: minX, minY: minY, maxX: maxX, maxY: maxY } }
+    applyFilter()
+    if (state.selected && nodeEls.has(state.selected)) markSelected()
+    fit()
+  }
+
+  function highlight(id, on) {
+    if (!current) return
+    var related = new Set([id])
+    current.edgeEls.forEach(function (item) {
+      if (item.edge.from === id) related.add(item.edge.to)
+      if (item.edge.to === id) related.add(item.edge.from)
+    })
+    if (on) {
+      current.nodeEls.forEach(function (el, nodeId) {
+        el.classList.toggle('dim', !related.has(nodeId))
+        el.classList.toggle('hot', related.has(nodeId) && nodeId !== id)
+      })
+      current.edgeEls.forEach(function (item) {
+        var hot = item.edge.from === id || item.edge.to === id
+        item.el.classList.toggle('hot', hot)
+        item.el.classList.toggle('dim', !hot)
+        item.el.setAttribute('marker-end', hot ? 'url(#arrowHot)' : 'url(#arrow)')
+      })
+    } else {
+      current.nodeEls.forEach(function (el) { el.classList.remove('dim', 'hot') })
+      current.edgeEls.forEach(function (item) {
+        item.el.classList.remove('hot', 'dim')
+        item.el.setAttribute('marker-end', 'url(#arrow)')
+      })
+      applyFilter()
+    }
+  }
+
+  function markSelected() {
+    current.nodeEls.forEach(function (el, id) { el.classList.toggle('sel', id === state.selected) })
+  }
+
+  function onNodeClick(node) {
+    if (node.kind === 'group') {
+      openGroup(node.meta.group)
+      return
+    }
+    state.selected = node.id
+    markSelected()
+    showDetails(node.meta.pkg)
+  }
+
+  /* ------------------------------------------------------------ views */
+
+  function openGroup(name) {
+    state.view = { kind: 'group', group: name }
+    state.selected = null
+    closeDetails()
+    render()
+    updateChrome()
+    try { location.hash = '#group/' + name } catch (err) { /* file:// restrictions */ }
+  }
+
+  function openOverview() {
+    state.view = { kind: 'overview' }
+    state.selected = null
+    closeDetails()
+    render()
+    updateChrome()
+    try { location.hash = '' } catch (err) { /* file:// restrictions */ }
+  }
+
+  function updateChrome() {
+    els.crumbs.textContent = ''
+    if (state.view.kind === 'overview') {
+      var title = document.createElement('span')
+      title.textContent = '全部分组'
+      els.crumbs.appendChild(title)
+      els.stats.textContent = DATA.totals.groups + ' 个分组 · ' + DATA.totals.peerEdges + ' 条跨组/组内 peer 边 · 点击分组下钻'
+      els.thresholdWrap.hidden = false
+    } else {
+      var back = document.createElement('button')
+      back.textContent = '全部分组'
+      back.addEventListener('click', openOverview)
+      els.crumbs.appendChild(back)
+      var sep = document.createElement('span')
+      sep.textContent = '/'
+      sep.style.color = '#c3c8d2'
+      els.crumbs.appendChild(sep)
+      var label = document.createElement('span')
+      label.textContent = state.view.group
+      els.crumbs.appendChild(label)
+      var view = findGroup(state.view.group)
+      var outCount = view.outward.reduce(function (a, e) { return a + e.names.length }, 0)
+      var inCount = view.inward.reduce(function (a, e) { return a + e.names.length }, 0)
+      els.stats.textContent = view.packages.length + ' 包 · 组内 ' + view.intra.length + ' 边 · 对外 ' + outCount + ' 边 · 被依赖 ' + inCount + ' 边'
+      els.thresholdWrap.hidden = true
+    }
+    var active = state.view.kind === 'group' ? state.view.group : null
+    Array.prototype.forEach.call(els.groupList.querySelectorAll('.groupItem'), function (el) {
+      el.classList.toggle('active', el.dataset.group === active)
+    })
+    updateLegend()
+  }
+
+  /* ---------------------------------------------------------- details */
+
+  function showDetails(pkg) {
+    els.details.hidden = false
+    els.details.textContent = ''
+
+    var close = document.createElement('button')
+    close.className = 'closeBtn'
+    close.textContent = '×'
+    close.title = '关闭'
+    close.addEventListener('click', closeDetails)
+    els.details.appendChild(close)
+
+    var h2 = document.createElement('h2')
+    h2.textContent = pkg.short
+    els.details.appendChild(h2)
+
+    var sub = document.createElement('div')
+    sub.className = 'sub'
+    sub.textContent = pkg.name + ' · ' + pkg.version
+    els.details.appendChild(sub)
+
+    var kv = document.createElement('dl')
+    kv.className = 'kv'
+    appendKv(kv, '分组', pkg.path.split('/').slice(0, 2).join('/'))
+    appendKv(kv, '路径', pkg.path)
+    appendKv(kv, '扇入 / 扇出', pkg.fanIn + ' / ' + pkg.fanOut)
+    els.details.appendChild(kv)
+
+    var desc = document.createElement('p')
+    desc.textContent = pkg.description
+    desc.style.marginTop = '12px'
+    els.details.appendChild(desc)
+
+    appendChips('依赖（peer，' + pkg.dependencies.length + '）', pkg.dependencies.map(function (d) {
+      return { short: d.short, group: d.group, optional: d.optional }
+    }))
+    appendChips('被依赖（' + pkg.dependents.length + '）', pkg.dependents.map(function (d) {
+      return { short: d.short, group: d.group, optional: d.optional }
+    }))
+
+    function appendKv(dl, key, value) {
+      var dt = document.createElement('dt')
+      dt.textContent = key
+      var dd = document.createElement('dd')
+      dd.textContent = value
+      dl.appendChild(dt)
+      dl.appendChild(dd)
+    }
+
+    function appendChips(title, items) {
+      var h3 = document.createElement('h3')
+      h3.textContent = title
+      els.details.appendChild(h3)
+      if (items.length === 0) {
+        var empty = document.createElement('p')
+        empty.textContent = '无'
+        empty.style.margin = '0'
+        els.details.appendChild(empty)
+        return
+      }
+      var list = document.createElement('div')
+      list.className = 'chipList'
+      items.forEach(function (item) {
+        var chip = document.createElement('button')
+        chip.className = 'chip' + (item.optional ? ' optional' : '')
+        chip.textContent = item.short
+        chip.title = item.group + (item.optional ? ' · 可选' : '')
+        chip.addEventListener('click', function () { jumpTo(item.short) })
+        list.appendChild(chip)
+      })
+      els.details.appendChild(list)
+    }
+  }
+
+  function closeDetails() {
+    els.details.hidden = true
+    els.details.textContent = ''
+    if (current) {
+      state.selected = null
+      markSelected()
+    }
+  }
+
+  function jumpTo(short) {
+    var group = PKG_GROUP.get(short)
+    if (group === undefined) return
+    closeRegistry()
+    state.view = { kind: 'group', group: group }
+    state.selected = 'p:' + short
+    render()
+    updateChrome()
+    var pkg = findGroup(group).packages.find(function (p) { return p.short === short })
+    if (pkg) showDetails(pkg)
+    try { location.hash = '#group/' + group } catch (err) { /* file:// restrictions */ }
+  }
+
+  /* ----------------------------------------------------------- filter */
+
+  function applyFilter() {
+    if (!current) return
+    var q = state.query.trim().toLowerCase()
+    var threshold = state.view.kind === 'overview' ? state.threshold : 1
+
+    current.edgeEls.forEach(function (item) {
+      var typeHidden = (item.edge.kind === 'outward' && !state.showOutward)
+        || (item.edge.kind === 'inward' && !state.showInward)
+      var optionalHidden = !state.showOptional && item.edge.optional
+      var underThreshold = state.view.kind === 'overview' && item.edge.count < threshold
+      item.el.style.display = (typeHidden || optionalHidden || underThreshold) ? 'none' : ''
+    })
+
+    var matched = new Set()
+    if (q.length > 0) {
+      current.graph.nodes.forEach(function (n) {
+        var hay = n.label.toLowerCase()
+        if (n.kind === 'pkg') hay += ' ' + n.meta.pkg.name.toLowerCase() + ' ' + n.meta.pkg.description.toLowerCase()
+        if (hay.indexOf(q) !== -1) matched.add(n.id)
+      })
+      current.nodeEls.forEach(function (el, id) {
+        el.classList.toggle('dim', !matched.has(id))
+      })
+    } else {
+      current.nodeEls.forEach(function (el) { el.classList.remove('dim') })
+    }
+  }
+
+  /** Show the legend lines that apply to the current view. */
+  function updateLegend() {
+    var groupView = state.view.kind === 'group'
+    els.legendPkg.hidden = !groupView
+    els.legendGrp.hidden = !groupView
+    els.legendThreshold.hidden = groupView
+    els.outToggle.parentElement.hidden = !groupView
+    els.inToggle.parentElement.hidden = !groupView
+  }
+
+  /* ------------------------------------------------------- zoom / pan */
+
+  function applyTransform() {
+    var t = state.transform
+    els.viewport.setAttribute('transform', 'translate(' + t.x + ',' + t.y + ') scale(' + t.k + ')')
+  }
+
+  function fit() {
+    if (!current) return
+    var rect = els.wrap.getBoundingClientRect()
+    var b = current.bbox
+    var w = Math.max(1, b.maxX - b.minX)
+    var h = Math.max(1, b.maxY - b.minY)
+    var pad = 48
+    var k = Math.min((rect.width - pad * 2) / w, (rect.height - pad * 2) / h)
+    k = Math.max(0.12, Math.min(k, 1.6))
+    state.transform = {
+      k: k,
+      x: (rect.width - w * k) / 2 - b.minX * k,
+      y: (rect.height - h * k) / 2 - b.minY * k
+    }
+    applyTransform()
+  }
+
+  /*
+   * Pointer capture retargets every later pointer event — including the click —
+   * to the capture element, so nodes cannot receive their own click listeners.
+   * Hit testing therefore happens here: a press that moves less than DRAG_SLOP
+   * is a click on the node under the pointer, anything further is a pan.
+   */
+  var DRAG_SLOP = 4
+
+  var dragging = null
+
+  function nodeAt(clientX, clientY) {
+    var el = document.elementFromPoint(clientX, clientY)
+    var group = el && el.closest ? el.closest('#viewport .node') : null
+    return group && group.__node ? group.__node : null
+  }
+
+  els.svg.addEventListener('pointerdown', function (ev) {
+    if (ev.button !== 0) return
+    dragging = { x: ev.clientX, y: ev.clientY, tx: state.transform.x, ty: state.transform.y, moved: false }
+    els.svg.classList.add('dragging')
+    els.svg.setPointerCapture(ev.pointerId)
+  })
+
+  els.svg.addEventListener('pointermove', function (ev) {
+    if (!dragging) return
+    var dx = ev.clientX - dragging.x
+    var dy = ev.clientY - dragging.y
+    if (!dragging.moved && Math.hypot(dx, dy) > DRAG_SLOP) dragging.moved = true
+    if (!dragging.moved) return
+    state.transform.x = dragging.tx + dx
+    state.transform.y = dragging.ty + dy
+    applyTransform()
+  })
+
+  els.svg.addEventListener('pointerup', function (ev) {
+    if (!dragging) return
+    var wasDrag = dragging.moved
+    dragging = null
+    els.svg.classList.remove('dragging')
+    try { els.svg.releasePointerCapture(ev.pointerId) } catch (err) { /* already released */ }
+
+    if (wasDrag) return
+    var node = nodeAt(ev.clientX, ev.clientY)
+    if (node) onNodeClick(node)
+    else if (state.selected) closeDetails()
+  })
+
+  els.svg.addEventListener('pointercancel', function () {
+    dragging = null
+    els.svg.classList.remove('dragging')
+  })
+  els.wrap.addEventListener('wheel', function (ev) {
+    ev.preventDefault()
+    var rect = els.wrap.getBoundingClientRect()
+    var mx = ev.clientX - rect.left
+    var my = ev.clientY - rect.top
+    var t = state.transform
+    var factor = Math.exp(-ev.deltaY * 0.0016)
+    var k = Math.max(0.08, Math.min(3, t.k * factor))
+    t.x = mx - (mx - t.x) * (k / t.k)
+    t.y = my - (my - t.y) * (k / t.k)
+    t.k = k
+    applyTransform()
+  }, { passive: false })
+
+  /* ------------------------------------------------------------- chrome */
+
+  function buildSidebar() {
+    els.totals.textContent = DATA.totals.packages + ' 个包 · ' + DATA.totals.groups + ' 组 · ' + DATA.totals.peerEdges + ' 条边'
+    els.groupList.textContent = ''
+
+    var overview = document.createElement('button')
+    overview.className = 'groupItem'
+    overview.dataset.group = ''
+    var oLabel = document.createElement('span')
+    oLabel.textContent = '全部分组'
+    overview.appendChild(oLabel)
+    var oCount = document.createElement('span')
+    oCount.className = 'count'
+    oCount.textContent = DATA.totals.groups
+    overview.appendChild(oCount)
+    overview.addEventListener('click', openOverview)
+    els.groupList.appendChild(overview)
+
+    var head = document.createElement('div')
+    head.className = 'groupHead'
+    head.textContent = '分组'
+    els.groupList.appendChild(head)
+
+    DATA.groups
+      .slice()
+      .sort(function (a, b) { return a.group.localeCompare(b.group) })
+      .forEach(function (view) {
+        var item = document.createElement('button')
+        item.className = 'groupItem'
+        item.dataset.group = view.group
+        var name = document.createElement('span')
+        name.textContent = view.group
+        item.appendChild(name)
+        var count = document.createElement('span')
+        count.className = 'count'
+        count.textContent = view.packages.length
+        item.appendChild(count)
+        item.addEventListener('click', function () { openGroup(view.group) })
+        els.groupList.appendChild(item)
+      })
+  }
+
+  els.search.addEventListener('input', function () {
+    state.query = els.search.value
+    applyFilter()
+  })
+  els.threshold.addEventListener('change', function () {
+    state.threshold = Number(els.threshold.value)
+    applyFilter()
+  })
+  els.optToggle.addEventListener('change', function () {
+    state.showOptional = els.optToggle.checked
+    applyFilter()
+  })
+  els.outToggle.addEventListener('change', function () {
+    state.showOutward = els.outToggle.checked
+    applyFilter()
+  })
+  els.inToggle.addEventListener('change', function () {
+    state.showInward = els.inToggle.checked
+    applyFilter()
+  })
+  els.fit.addEventListener('click', fit)
+  els.registryBtn.addEventListener('click', openRegistry)
+  els.registryClose.addEventListener('click', closeRegistry)
+  els.registrySearch.addEventListener('input', function () {
+    registryQuery = els.registrySearch.value
+    renderRegistry()
+  })
+
+  /* ---------------------------------------------------------- registry */
+
+  function chip(text, kind, extraClass, title) {
+    var el = document.createElement('span')
+    el.className = 'regChip ' + kind + (extraClass ? ' ' + extraClass : '')
+    el.textContent = text
+    if (title) el.title = title
+    return el
+  }
+
+  function renderRegistry() {
+    var query = registryQuery.trim().toLowerCase()
+    var body = els.registryBody
+    body.textContent = ''
+
+    var rows = []
+    DATA.groups.forEach(function (view) {
+      view.packages.forEach(function (pkg) {
+        var reg = pkg.registrations || { tools: [], sections: [], contexts: [] }
+        var total = reg.tools.length + reg.sections.length + reg.contexts.length + (pkg.dynamicSites || []).length
+        if (total === 0) return
+        var hay = (pkg.short + ' ' + pkg.name + ' ' + pkg.description + ' '
+          + reg.tools.map(function (r) { return r.name }).join(' ')
+          + reg.sections.map(function (r) { return r.name }).join(' ')
+          + reg.contexts.map(function (r) { return r.name }).join(' ')).toLowerCase()
+        if (query.length > 0 && hay.indexOf(query) === -1) return
+        rows.push({ group: view.group, pkg: pkg, reg: reg, total: total })
+      })
+    })
+
+    rows.sort(function (a, b) {
+      return b.total - a.total || a.pkg.short.localeCompare(b.pkg.short)
+    })
+
+    els.registryStats.textContent = rows.length + ' 个包注册了 ' + DATA.totals.tools + ' 个工具、'
+      + DATA.totals.sections + ' 个 section、' + DATA.totals.contexts + ' 个运行时上下文'
+      + (DATA.totals.dynamicSites ? '，另有 ' + DATA.totals.dynamicSites + ' 处动态注册' : '')
+
+    if (rows.length === 0) {
+      var empty = document.createElement('p')
+      empty.style.color = '#8b93a1'
+      empty.style.padding = '24px 8px'
+      empty.textContent = '没有匹配的包。'
+      body.appendChild(empty)
+      return
+    }
+
+    var table = document.createElement('table')
+    var thead = document.createElement('thead')
+    var headRow = document.createElement('tr')
+    ;['包', '分组', '工具', '提示词 section', '运行时上下文'].forEach(function (label) {
+      var th = document.createElement('th')
+      th.textContent = label
+      headRow.appendChild(th)
+    })
+    thead.appendChild(headRow)
+    table.appendChild(thead)
+
+    var tbody = document.createElement('tbody')
+    rows.forEach(function (row) {
+      var tr = document.createElement('tr')
+      tr.className = 'pkgRow'
+      tr.title = '跳到该包所在的依赖图'
+      tr.addEventListener('click', function () { jumpTo(row.pkg.short) })
+
+      var nameCell = document.createElement('td')
+      var nameSpan = document.createElement('span')
+      nameSpan.className = 'pkgName'
+      nameSpan.textContent = row.pkg.short
+      nameCell.appendChild(nameSpan)
+      tr.appendChild(nameCell)
+
+      var groupCell = document.createElement('td')
+      groupCell.className = 'groupTag'
+      groupCell.textContent = row.group
+      tr.appendChild(groupCell)
+
+      ;[
+        [row.reg.tools, 'tool'],
+        [row.reg.sections, 'section'],
+        [row.reg.contexts, 'context'],
+      ].forEach(function (pair) {
+        var cell = document.createElement('td')
+        if (pair[0].length === 0) {
+          cell.className = 'regEmpty'
+          cell.textContent = '—'
+        } else {
+          pair[0].forEach(function (item) {
+            var title = item.file + ':' + item.line
+            if (item.configDriven) title += ' · 名称由配置决定'
+            if (item.interpolate) title += ' · 不插值'
+            if (item.complete) title += ' · 完整提示词'
+            cell.appendChild(chip(item.name, pair[1], item.configDriven ? 'config' : '', title))
+          })
+        }
+        tr.appendChild(cell)
+      })
+
+      if (row.pkg.dynamicSites && row.pkg.dynamicSites.length > 0) {
+        var dynamicCell = tr.children[2]
+        row.pkg.dynamicSites.forEach(function (site) {
+          dynamicCell.appendChild(chip('动态', 'dynamic', '', site.file + ':' + site.line + ' · 名称在运行期计算'))
+        })
+      }
+      tbody.appendChild(tr)
+    })
+    table.appendChild(tbody)
+    body.appendChild(table)
+  }
+
+  function openRegistry() {
+    els.registry.hidden = false
+    els.registrySearch.value = ''
+    registryQuery = ''
+    renderRegistry()
+    els.registrySearch.focus()
+  }
+
+  function closeRegistry() {
+    els.registry.hidden = true
+  }
+  window.addEventListener('resize', function () { fit() })
+  window.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') {
+      if (state.selected) closeDetails()
+      else if (state.view.kind === 'group') openOverview()
+    }
+    if (ev.key === '/' && document.activeElement !== els.search) {
+      ev.preventDefault()
+      els.search.focus()
+    }
+  })
+
+  buildSidebar()
+  var hash = decodeURIComponent(location.hash.replace(/^#/, ''))
+  if (hash.indexOf('group/') === 0) {
+    var name = hash.slice('group/'.length)
+    if (findGroup(name)) {
+      state.view = { kind: 'group', group: name }
+    }
+  }
+  render()
+  updateChrome()
+})()
+</script>
+</body>
+</html>

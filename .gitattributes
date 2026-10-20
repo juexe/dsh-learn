@@ -1,0 +1,9 @@
+# Line endings: normalise on commit, keep the working tree native per platform.
+* text=auto eol=lf
+
+# Source and documentation are always LF.
+*.mjs text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.md text eol=lf

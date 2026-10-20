@@ -1,0 +1,21 @@
+{
+  "name": "dsh-learn",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dependency and registration analysis for the DeepSeek Harness package workspace",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "build": "node scripts/extract.mjs && node scripts/analyze.mjs && node scripts/scan-registrations.mjs && node scripts/build-page.mjs",
+    "extract": "node scripts/extract.mjs",
+    "analyze": "node scripts/analyze.mjs",
+    "scan": "node scripts/scan-registrations.mjs",
+    "page": "node scripts/build-page.mjs",
+    "verify": "node scripts/verify-page.mjs",
+    "crosscheck": "node scripts/crosscheck-tools.mjs",
+    "check": "node scripts/verify-page.mjs && node scripts/crosscheck-tools.mjs",
+    "serve": "node scripts/serve.mjs"
+  }
+}
