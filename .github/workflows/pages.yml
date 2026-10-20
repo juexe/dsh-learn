@@ -1,0 +1,47 @@
+# Publish the committed single-file page to GitHub Pages.
+# The page is a build artifact in `deliverables/`, so CI does not need the
+# harness checkout the analysis was derived from; it only re-validates the
+# embedded data before deploying.
+name: Deploy page to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Verify embedded page data
+        run: node scripts/verify-page.mjs
+
+  deploy:
+    needs: verify
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
+      - name: Upload page
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: deliverables
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
