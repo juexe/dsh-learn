@@ -28,6 +28,8 @@ jobs:
           node-version: 24
       - name: Verify embedded page data
         run: node scripts/verify-page.mjs
+      - name: Verify embedded slot data
+        run: node scripts/verify-slots-pages.mjs
 
   deploy:
     needs: verify

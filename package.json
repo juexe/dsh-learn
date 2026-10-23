@@ -24,14 +24,17 @@
     "visualization"
   ],
   "scripts": {
-    "build": "node scripts/extract.mjs && node scripts/analyze.mjs && node scripts/scan-registrations.mjs && node scripts/build-page.mjs",
+    "build": "node scripts/extract.mjs && node scripts/analyze.mjs && node scripts/scan-registrations.mjs && node scripts/build-page.mjs && node scripts/extract-slots.mjs && node scripts/build-slots-page.mjs && node scripts/build-slots-mock.mjs",
     "extract": "node scripts/extract.mjs",
     "analyze": "node scripts/analyze.mjs",
     "scan": "node scripts/scan-registrations.mjs",
     "page": "node scripts/build-page.mjs",
-    "verify": "node scripts/verify-page.mjs",
+    "slots": "node scripts/extract-slots.mjs",
+    "slots:page": "node scripts/build-slots-page.mjs",
+    "slots:mock": "node scripts/build-slots-mock.mjs",
+    "verify": "node scripts/verify-page.mjs && node scripts/verify-slots-pages.mjs",
     "crosscheck": "node scripts/crosscheck-tools.mjs",
-    "check": "node scripts/verify-page.mjs && node scripts/crosscheck-tools.mjs",
+    "check": "node scripts/verify-page.mjs && node scripts/verify-slots-pages.mjs && node scripts/crosscheck-tools.mjs",
     "serve": "node scripts/serve.mjs"
   }
 }

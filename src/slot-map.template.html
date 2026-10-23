@@ -1,0 +1,1967 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>DSH Web UI 扩展点地图</title>
+<style>
+/* ==========================================================================
+   语义色板取自 packages/client/ui-theme/src/styles/design-platform.css，
+   明暗两套各写一次，页面脱离产品运行时也能保持同一套配色。
+   ========================================================================== */
+:root {
+  color-scheme: light;
+  --bg-page: rgb(249 250 251);
+  --bg-panel: #ffffff;
+  --bg-elev: #ffffff;
+  --bg-sunken: rgb(245 246 247);
+  --bg-hover: rgba(38, 49, 72, 0.06);
+  --bg-selected: rgba(65, 118, 230, 0.09);
+  --border-1: rgba(0, 0, 0, 0.06);
+  --border-2: rgba(0, 0, 0, 0.10);
+  --border-3: rgba(0, 0, 0, 0.16);
+  --text-1: rgb(15 17 21);
+  --text-2: rgb(97 102 107);
+  --text-3: rgb(129 133 140);
+  --text-4: rgb(173 178 184);
+  --accent: rgb(65 118 230);
+  --accent-text: rgb(37 99 235);
+  --accent-soft: rgba(65, 118, 230, 0.10);
+  --kind-single: rgb(65 118 230);
+  --kind-list: rgb(34 197 94);
+  --kind-keyed: rgb(245 158 11);
+  --kind-chain: rgb(151 157 166);
+  --warn: rgb(221 134 41);
+  --warn-text: rgb(160 95 16);
+  --warn-soft: rgba(245, 158, 11, 0.13);
+  --ok: rgb(34 197 94);
+  --shadow-1: 0 1px 2px rgba(15, 17, 21, 0.06);
+  --shadow-2: 0 8px 24px rgba(15, 17, 21, 0.10);
+  --shadow-3: 0 16px 48px rgba(15, 17, 21, 0.18);
+  --code-bg: rgb(245 246 247);
+  --cmt: rgb(129 133 140);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-page: rgb(21 21 23);
+  --bg-panel: rgb(35 35 36);
+  --bg-elev: rgb(44 44 46);
+  --bg-sunken: rgb(27 27 28);
+  --bg-hover: rgba(255, 255, 255, 0.07);
+  --bg-selected: rgba(122, 170, 255, 0.14);
+  --border-1: rgba(255, 255, 255, 0.06);
+  --border-2: rgba(255, 255, 255, 0.12);
+  --border-3: rgba(255, 255, 255, 0.18);
+  --text-1: rgb(249 250 251);
+  --text-2: rgb(207 211 214);
+  --text-3: rgb(173 178 184);
+  --text-4: rgb(129 133 140);
+  --accent: rgb(122 170 255);
+  --accent-text: rgb(122 170 255);
+  --accent-soft: rgba(122, 170, 255, 0.14);
+  --kind-single: rgb(122 170 255);
+  --kind-list: rgb(78 209 126);
+  --kind-keyed: rgb(247 173 49);
+  --kind-chain: rgb(173 178 184);
+  --warn: rgb(247 173 49);
+  --warn-text: rgb(247 173 49);
+  --warn-soft: rgba(247, 173, 49, 0.14);
+  --ok: rgb(78 209 126);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --code-bg: rgb(27 27 28);
+  --cmt: rgb(129 133 140);
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg-page);
+  color: var(--text-1);
+  font: 14px/1.55 ui-sans-serif, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Noto Sans SC", sans-serif;
+  font-feature-settings: "tnum" 1;
+}
+
+code, pre, .mono {
+  font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+}
+
+a { color: var(--accent-text); }
+
+button { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.shell { max-width: 1480px; margin: 0 auto; padding: 0 20px 56px; }
+
+/* ---------- 顶栏 ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: color-mix(in srgb, var(--bg-page) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-1);
+}
+
+.topbar-inner {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.brand .sub { color: var(--text-3); font-size: 12.5px; }
+
+.topbar-spacer { flex: 1 1 auto; }
+
+.pagenav { display: flex; gap: 2px; margin: 14px 0 0; padding: 2px; background: var(--bg-sunken); border: 1px solid var(--border-1); border-radius: 8px; width: fit-content; }
+.pagenav a {
+  padding: 5px 10px; border-radius: 6px;
+  color: var(--text-3); font-size: 12px; text-decoration: none; white-space: nowrap;
+}
+.pagenav a:hover { color: var(--text-1); background: var(--bg-hover); }
+.pagenav a[aria-current="page"] { background: var(--bg-elev); color: var(--text-1); font-weight: 500; }
+
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.icon-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+.icon-btn svg { width: 15px; height: 15px; }
+
+/* ---------- 概览 ---------- */
+
+.overview {
+  display: grid;
+  gap: 14px;
+  padding: 22px 0 18px;
+}
+
+.provenance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.provenance code { color: var(--text-2); background: var(--bg-sunken); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border-1); }
+
+.stats { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 7px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-1);
+  border-radius: 10px;
+  box-shadow: var(--shadow-1);
+}
+.stat b { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--text-3); font-size: 12.5px; }
+.stat[data-tone="warn"] b { color: var(--warn-text); }
+.stat[data-tone="accent"] b { color: var(--accent-text); }
+
+.regions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.region-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: var(--bg-panel);
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.region-chip:hover { background: var(--bg-hover); color: var(--text-1); }
+.region-chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.region-chip .n { font-variant-numeric: tabular-nums; color: var(--text-4); }
+.region-chip[aria-pressed="true"] .n { color: inherit; }
+
+/* ---------- 规则 ---------- */
+
+.rules { margin: 4px 0 20px; }
+.rules > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.rules > summary::-webkit-details-marker { display: none; }
+.rules > summary::before {
+  content: "";
+  width: 0; height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  translate: 0 -1px;
+  transition: rotate 120ms ease;
+}
+.rules[open] > summary::before { rotate: 90deg; }
+.rules > summary:hover { color: var(--text-1); }
+.rules > summary span { font-weight: 400; color: var(--text-4); font-size: 12px; }
+.rules:not([open]) > summary { margin-bottom: 0; }
+
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  gap: 8px;
+}
+
+.rule {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-1);
+  border-radius: 10px;
+  box-shadow: var(--shadow-1);
+}
+.rule > summary {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 10px;
+}
+.rule > summary::-webkit-details-marker { display: none; }
+.rule > summary:hover { background: var(--bg-hover); }
+.rule .num {
+  flex: none;
+  width: 18px; height: 18px;
+  margin-top: 1px;
+  display: grid; place-items: center;
+  border-radius: 5px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-1);
+  color: var(--text-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.rule .zh { font-size: 12.5px; color: var(--text-2); }
+.rule[open] .zh { color: var(--text-1); }
+.rule .en {
+  margin: 0;
+  padding: 0 12px 12px 39px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-3);
+  border-top: 1px solid var(--border-1);
+  padding-top: 10px;
+}
+.rule .en::before {
+  content: "CLIENT_NOTES 原文";
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-4);
+  margin-bottom: 4px;
+}
+
+/* ---------- 工作区 ---------- */
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 430px;
+  gap: 20px;
+  align-items: start;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-1);
+  border-radius: 12px;
+  box-shadow: var(--shadow-1);
+  min-width: 0;
+}
+
+.toolbar {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid var(--border-1);
+}
+
+.toolbar-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.search {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.search svg {
+  position: absolute;
+  left: 10px; top: 50%;
+  translate: 0 -50%;
+  width: 14px; height: 14px;
+  color: var(--text-4);
+  pointer-events: none;
+}
+.search input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 30px 0 32px;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  background: var(--bg-sunken);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+}
+.search input::placeholder { color: var(--text-4); }
+.search input:focus { background: var(--bg-elev); border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.search .clear {
+  position: absolute; right: 4px; top: 50%;
+  translate: 0 -50%;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 6px;
+  background: transparent; color: var(--text-3);
+  cursor: pointer; font-size: 15px; line-height: 1;
+}
+.search .clear:hover { background: var(--bg-hover); color: var(--text-1); }
+.search .clear[hidden] { display: none; }
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+}
+.segmented button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.segmented button:hover { color: var(--text-1); background: var(--bg-hover); }
+.segmented button[aria-pressed="true"] {
+  background: var(--bg-elev);
+  color: var(--text-1);
+  box-shadow: var(--shadow-1);
+  font-weight: 500;
+}
+
+.filter-group { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.filter-label { color: var(--text-4); font-size: 11.5px; white-space: nowrap; }
+
+.toolbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.toolbar-meta b { color: var(--text-1); font-variant-numeric: tabular-nums; }
+
+.link-btn {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 12px;
+}
+.link-btn:hover { background: var(--bg-hover); color: var(--text-1); border-color: var(--border-1); }
+
+/* ---------- 树 ---------- */
+
+.tree-wrap { padding: 10px 8px 16px; overflow-x: auto; }
+
+ul.tree, ul.tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+ul.tree ul { margin-left: 9px; padding-left: 9px; border-left: 1px dashed var(--border-2); }
+ul.tree > li + li { margin-top: 1px; }
+
+.node-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 2px 6px 2px 2px;
+  border-radius: 7px;
+  border-left: 2px solid transparent;
+}
+.node-row:hover { background: var(--bg-hover); }
+.node-row[data-selected="true"] {
+  background: var(--bg-selected);
+  border-left-color: var(--accent);
+}
+.node-row[data-context="true"] { opacity: 0.55; }
+
+.twisty {
+  flex: none;
+  width: 20px; height: 20px;
+  margin-top: 1px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 5px;
+  background: transparent;
+  color: var(--text-4);
+  cursor: pointer;
+  padding: 0;
+}
+.twisty:hover { background: var(--border-1); color: var(--text-2); }
+.twisty svg { width: 11px; height: 11px; transition: rotate 120ms ease; }
+.twisty[aria-expanded="true"] svg { rotate: 90deg; }
+.twisty[data-leaf="true"] { cursor: default; }
+.twisty[data-leaf="true"] svg { visibility: hidden; }
+
+.node-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  border-radius: 5px;
+}
+.node-main .key {
+  font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+.node-row[data-selected="true"] .key { color: var(--accent-text); font-weight: 500; }
+.node-main .key .factory-tag {
+  color: var(--text-3);
+  font-size: 10.5px;
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-right: 5px;
+  vertical-align: 1px;
+  font-family: inherit;
+}
+
+.node-meta { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px 0 4px;
+  border: 1px solid var(--border-1);
+  border-radius: 5px;
+  background: var(--bg-sunken);
+  color: var(--text-2);
+  font-size: 10.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.badge::before {
+  content: "";
+  width: 3px; height: 11px;
+  border-radius: 2px;
+  background: var(--kind-chain);
+}
+.badge[data-kind="single"]::before { background: var(--kind-single); }
+.badge[data-kind="list"]::before { background: var(--kind-list); }
+.badge[data-kind="keyed"]::before { background: var(--kind-keyed); }
+.badge[data-kind="chain"]::before { background: var(--kind-chain); }
+.badge .glyph {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 9.5px;
+  color: var(--text-3);
+  width: 8px;
+  text-align: center;
+}
+.badge b { font-weight: 500; }
+
+.scope-tag {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--text-3);
+  background: transparent;
+  border: 1px dashed var(--border-2);
+  border-radius: 4px;
+  padding: 0 4px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.seat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  border: 1px solid var(--border-2);
+  color: var(--text-3);
+  background: transparent;
+}
+.seat[data-empty="true"] { border-style: dashed; }
+.seat .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ok); }
+.seat .dot[data-hollow="true"] { background: transparent; border: 1.5px solid var(--ok); width: 6px; height: 6px; }
+
+.risk-mark {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  color: var(--warn-text);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+.node-row:hover .risk-mark { opacity: 1; }
+
+/* ---------- 表格 ---------- */
+
+.table-wrap { overflow: auto; padding: 0 0 6px; }
+
+table.index {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+table.index thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-2);
+  padding: 9px 10px;
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+table.index thead th button {
+  border: 0; background: transparent; color: inherit; cursor: pointer;
+  padding: 0; font: inherit; display: inline-flex; gap: 4px; align-items: center;
+}
+table.index thead th button:hover { color: var(--text-1); }
+table.index thead th[aria-sort="ascending"] button,
+table.index thead th[aria-sort="descending"] button { color: var(--text-1); }
+table.index thead th .arrow { font-size: 9px; }
+table.index tbody tr { border-bottom: 1px solid var(--border-1); cursor: pointer; }
+table.index tbody tr:hover { background: var(--bg-hover); }
+table.index tbody tr[data-selected="true"] { background: var(--bg-selected); }
+table.index tbody tr[data-selected="true"] td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+table.index td { padding: 7px 10px; vertical-align: top; }
+table.index td.key { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; min-width: 240px; }
+table.index td.num { font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
+table.index td.dim { color: var(--text-3); font-size: 11.5px; }
+table.index td.nowrap { white-space: nowrap; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 19px; padding: 0 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  border: 1px solid var(--border-2);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.pill[data-tone="warn"] { border-color: var(--warn); background: var(--warn-soft); color: var(--warn-text); }
+.pill[data-tone="ok"] { border-style: dashed; }
+
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
+}
+.empty-state strong { display: block; color: var(--text-1); font-size: 14px; margin-bottom: 4px; }
+
+/* ---------- 详情 ---------- */
+
+.detail {
+  position: sticky;
+  top: 76px;
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-1);
+  border-radius: 12px;
+  box-shadow: var(--shadow-1);
+  scrollbar-width: thin;
+}
+.detail[data-empty="true"] { position: sticky; }
+
+.detail-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-panel);
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-1);
+}
+.detail-head .kicker {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--text-4); font-size: 11px; margin-bottom: 5px;
+}
+.detail-key {
+  margin: 0;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.detail-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.detail-close {
+  position: absolute; right: 8px; top: 8px;
+  width: 30px; height: 30px;
+  display: none;
+  place-items: center;
+  border: 1px solid var(--border-1);
+  border-radius: 7px;
+  background: var(--bg-elev);
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+.detail-close:hover { background: var(--bg-hover); color: var(--text-1); }
+
+.detail-body { padding: 4px 16px 18px; }
+
+.sect { padding: 13px 0; border-bottom: 1px solid var(--border-1); }
+.sect:last-child { border-bottom: 0; padding-bottom: 4px; }
+.sect > h3 {
+  margin: 0 0 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sect > h3 .count {
+  font-weight: 400;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+}
+.sect-hint { margin: 7px 0 0; color: var(--text-4); font-size: 11.5px; line-height: 1.5; }
+
+.prose { margin: 0; color: var(--text-1); font-size: 13px; line-height: 1.65; white-space: pre-line; }
+
+pre.code {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--code-bg);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-1);
+  overflow: auto;
+  tab-size: 2;
+  white-space: pre;
+}
+pre.code + pre.code { margin-top: 6px; }
+pre.code .cmt { color: var(--cmt); }
+
+.declare-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+.declare-line code { font-size: 12px; color: var(--text-1); }
+
+.parent-link {
+  border: 0;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--accent-text);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.parent-link:hover { background: var(--accent-soft); }
+
+.occupant-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.occupant {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 8px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: 7px;
+  font-size: 12px;
+  min-width: 0;
+}
+.occupant .pkg {
+  flex: none;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.occupant .what {
+  color: var(--text-1);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.occupant-none { color: var(--text-3); font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+.occupant-none::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  border: 1.5px solid var(--ok);
+}
+
+.key-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.key-chip {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--text-2);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: 4px;
+  padding: 1px 5px;
+  overflow-wrap: anywhere;
+}
+
+.opt-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.opt {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 8px;
+  font-size: 12px;
+}
+.opt .name { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; color: var(--text-1); font-size: 11.5px; }
+.opt .req { color: var(--text-4); font-size: 10.5px; white-space: nowrap; }
+.opt .doc { grid-column: 1 / -1; color: var(--text-3); font-size: 11.5px; line-height: 1.55; }
+.opt .type { grid-column: 1 / -1; color: var(--text-2); font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; }
+
+.props-grid {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) 1fr;
+  gap: 3px 10px;
+  font-size: 11.5px;
+  align-items: baseline;
+}
+.props-grid dt {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  color: var(--text-1);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.props-grid dd {
+  margin: 0;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  color: var(--text-3);
+  font-size: 10.5px;
+  overflow-wrap: anywhere;
+}
+
+.more-btn { margin-top: 7px; }
+
+.copy-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.copy-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 30px; padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid var(--border-2);
+  background: var(--bg-elev);
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 12px;
+}
+.copy-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+.copy-btn[data-done="true"] { border-color: var(--ok); color: var(--ok-text, var(--text-1)); }
+
+.src {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 详情空态 ---------- */
+
+.guide { padding: 18px 16px 22px; }
+.guide h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+.guide p { margin: 0 0 14px; color: var(--text-3); font-size: 12.5px; line-height: 1.65; }
+.guide ol { margin: 0 0 16px; padding-left: 18px; color: var(--text-2); font-size: 12.5px; line-height: 1.75; }
+.guide ol li::marker { color: var(--text-4); }
+.guide .suggest {
+  display: flex; flex-direction: column; gap: 6px;
+  padding-top: 14px; border-top: 1px solid var(--border-1);
+}
+.guide .suggest span { font-size: 11.5px; color: var(--text-4); }
+.suggest-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  background: var(--bg-sunken);
+  cursor: pointer;
+  text-align: left;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.suggest-btn:hover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
+
+/* ---------- 页脚与提示 ---------- */
+
+.page-foot {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-1);
+  color: var(--text-4);
+  font-size: 11.5px;
+  display: flex;
+  gap: 6px 16px;
+  flex-wrap: wrap;
+}
+.page-foot code { color: var(--text-3); }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  translate: -50% 12px;
+  z-index: 60;
+  padding: 9px 16px;
+  border-radius: 9px;
+  background: var(--text-1);
+  color: var(--bg-panel);
+  font-size: 12.5px;
+  box-shadow: var(--shadow-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, translate 160ms ease;
+}
+.toast[data-show="true"] { opacity: 1; translate: -50% 0; }
+
+/* ---------- 响应式 ---------- */
+
+@media (max-width: 1180px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .detail {
+    position: fixed;
+    inset: auto 0 0 0;
+    top: auto;
+    max-height: 74dvh;
+    border-radius: 14px 14px 0 0;
+    border-bottom: 0;
+    box-shadow: var(--shadow-3);
+    z-index: 50;
+    translate: 0 100%;
+    transition: translate 200ms ease;
+    display: none;
+  }
+  .detail[data-open="true"] {
+    display: block;
+    translate: 0 0;
+  }
+  .detail-close { display: grid; }
+  .detail-head { padding-right: 44px; }
+  .shell { padding-bottom: 80px; }
+  .expander { display: none; }
+}
+
+@media (max-width: 720px) {
+  .shell { padding: 0 12px 56px; }
+  .topbar-inner { padding: 10px 12px; }
+  .brand h1 { font-size: 15px; }
+  .brand .sub { display: none; }
+  ul.tree ul { margin-left: 5px; padding-left: 6px; }
+  .node-main .key { font-size: 11.5px; }
+  .toolbar { padding: 10px; }
+  .filter-label { display: none; }
+  .segmented button { padding: 0 8px; }
+  table.index td.key { min-width: 180px; }
+  /* 窄屏：键名单占一行，徽章压到第二行，避免每个节点被拆成三行。 */
+  .node-main { display: block; }
+  .node-main .node-meta { display: flex; margin-top: 1px; }
+  .risk-mark { margin-left: 2px; }
+  .rules-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>DSH Web UI 扩展点地图</h1>
+      <span class="sub" id="brandSub">浏览器半区槽位目录</span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <nav class="pagenav" aria-label="页面">
+      <a href="./index.html">依赖图</a>
+      <a href="./slots.html" aria-current="page">槽位地图</a>
+      <a href="./slots-ui.html">界面复刻</a>
+    </nav>
+    <span style="width:8px"></span>
+    <button class="icon-btn" id="themeBtn" type="button" aria-live="polite">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.4v1.6M8 13v1.6M1.4 8h1.6M13 8h1.6M3.3 3.3l1.1 1.1M11.6 11.6l1.1 1.1M12.7 3.3l-1.1 1.1M4.4 11.6l-1.1 1.1" stroke-linecap="round"/></svg>
+      <span id="themeLabel">深色</span>
+    </button>
+  </div>
+</header>
+
+<div class="shell">
+
+  <section class="overview" aria-label="目录概览">
+    <div class="provenance">
+      数据源 <code id="srcPath">slot-catalog.ts</code>
+      <span>构建期生成，勿手改</span>
+      <span aria-hidden="true">·</span>
+      <span id="srcMeta"></span>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="regions" id="regions" role="group" aria-label="按界面区域筛选"></div>
+  </section>
+
+  <details class="rules" open>
+    <summary>注册规则 <span>CLIENT_NOTES 原文</span></summary>
+    <div class="rules-grid" id="rulesGrid"></div>
+  </details>
+
+  <div class="workspace">
+    <section class="panel" aria-label="槽位目录">
+      <div class="toolbar">
+        <div class="toolbar-row">
+          <div class="search">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2 14 14" stroke-linecap="round"/></svg>
+            <input id="search" type="search" placeholder="搜索槽位、占用组件、包名、说明…（按 / 聚焦）" aria-label="搜索槽位" autocomplete="off" spellcheck="false">
+            <button class="clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
+          </div>
+          <div class="segmented" role="group" aria-label="视图">
+            <button type="button" data-view="tree" aria-pressed="true">层级树</button>
+            <button type="button" data-view="table" aria-pressed="false">索引表</button>
+          </div>
+        </div>
+        <div class="toolbar-row" id="filters">
+          <div class="filter-group" data-filter="kind">
+            <span class="filter-label">基数</span>
+            <div class="segmented" role="group" aria-label="按基数筛选"></div>
+          </div>
+          <div class="filter-group" data-filter="scope">
+            <span class="filter-label">作用域</span>
+            <div class="segmented" role="group" aria-label="按作用域筛选"></div>
+          </div>
+          <div class="filter-group" data-filter="seat">
+            <span class="filter-label">占用</span>
+            <div class="segmented" role="group" aria-label="按占用状态筛选"></div>
+          </div>
+          <div class="filter-group" data-filter="risk">
+            <span class="filter-label">风险</span>
+            <div class="segmented" role="group" aria-label="按替换风险筛选"></div>
+          </div>
+        </div>
+        <div class="toolbar-meta">
+          <span>匹配 <b id="matchCount">0</b> / <span id="totalCount">0</span> 个槽位</span>
+          <span id="filterNote"></span>
+          <span class="topbar-spacer"></span>
+          <button class="link-btn" id="expandAll" type="button">全部展开</button>
+          <button class="link-btn" id="collapseAll" type="button">折叠二级</button>
+        </div>
+      </div>
+      <div id="treeView" class="tree-wrap"></div>
+      <div id="tableView" class="table-wrap" hidden></div>
+      <div id="noResults" class="empty-state" hidden>
+        <strong>没有匹配的槽位</strong>
+        换一个关键词，或清除筛选条件
+      </div>
+    </section>
+
+    <aside class="detail" id="detail" aria-label="槽位详情"></aside>
+  </div>
+
+  <footer class="page-foot">
+    <span>单文件离线页面，无外部依赖</span>
+    <span aria-hidden="true">·</span>
+    <span>槽位契约以 <code>slot-catalog.ts</code> 为准，本页只读取不推导</span>
+    <span aria-hidden="true">·</span>
+    <span>重新生成目录：<code>pnpm run gen-client-catalog</code></span>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script id="slot-data" type="application/json">__DATA__</script>
+<script>
+'use strict';
+const CATALOG = JSON.parse(document.getElementById("slot-data").textContent);
+
+/* ==========================================================================
+   规则原文与中文摘要按索引一一对应：摘要是解说，原文才是契约。
+   ========================================================================== */
+const RULE_ZH = [
+  '只通过 ctx.slots.register(options, Component) 贡献 UI；返回的插件要声明 inject: [\'slots\']，否则座位会被扣下。',
+  '每次注册都包进 ctx.slots.inject(key, () => …)：槽位只在声明它的条目挂载期间存在，向未声明的槽位注册会抛错，声明复活时会重跑注册。',
+  '不要传 priority：浏览器半区门面会自动分配，且低于所有官方条目——在 single 或 keyed 格子里，最终渲染的就是你。',
+  '插件运行时不能 import，用 React.createElement 搭结构、styles.insert(css) 送样式；颜色走 var(--dsw-alias-*) 主题变量，否则另一套配色下会坏。',
+  '组件按作用域收到框架钩子；选择器钩子必须传 selector，例如 useSessions(state => state.current)。',
+  '这份目录是构建期契约而不是某一页的快照：键只在声明者挂载时可注册；注册失败会进入浏览器半区的加载报告，用 cordis_inspect what:"temporary" 回读。',
+];
+
+const KIND_LABEL = { single: '单座', list: '列表', keyed: '键控', chain: '链式' };
+const KIND_GLYPH = { single: 'S', list: 'L', keyed: 'K', chain: 'C' };
+const SCOPE_LABEL = { root: 'root', session: 'session', 'session-maybe': 'session-maybe' };
+const REGIONS = CATALOG.regions;
+
+/* ---------- 数据模型 ---------- */
+
+/** 把 JSDoc 的硬换行还原成段落：空行分段，其余行合并成一段。 */
+function unwrapDoc(text) {
+  return String(text)
+    .split(/\n\s*\n/)
+    .map(paragraph => paragraph.replace(/\s*\n\s*/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+const SLOTS = CATALOG.slots;
+const OPTION_ORDER = { single: [], list: ['id', 'order', 'label'], keyed: ['key'], chain: ['select'] };
+const SLOT_BY_KEY = new Map(SLOTS.map(slot => [slot.k, slot]));
+const FACTORY_BY_NAME = new Map(CATALOG.factories.map(factory => [factory.name, factory]));
+
+const NODES = new Map();
+for (const slot of SLOTS) NODES.set(slot.k, { id: slot.k, type: 'slot', data: slot, children: [] });
+for (const factory of CATALOG.factories) NODES.set(factory.name, { id: factory.name, type: 'factory', data: factory, children: [] });
+
+const ROOT = NODES.get('root');
+/** 工厂没有槽位父级：它们由包定义并跨调用点复用，单独成组。 */
+const FACTORY_ROOTS = [];
+for (const node of NODES.values()) {
+  if (node === ROOT) continue;
+  if (node.type === 'factory') { FACTORY_ROOTS.push(node); continue; }
+  const parent = NODES.get(node.data.parent);
+  if (parent) parent.children.push(node);
+}
+FACTORY_ROOTS.sort((a, b) => a.id.localeCompare(b.id));
+for (const node of NODES.values()) {
+  node.children.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function depthOf(key) {
+  let depth = 0;
+  let node = NODES.get(key);
+  while (node && node.data.parent) { depth += 1; node = NODES.get(node.data.parent); }
+  return depth;
+}
+
+const state = {
+  view: 'tree',
+  q: '',
+  kind: 'all',
+  scope: 'all',
+  seat: 'all',
+  risk: 'all',
+  region: 'all',
+  selected: null,
+  sheetOpen: false,
+  sort: { col: 'key', dir: 1 },
+  expanded: new Set(),
+};
+
+/** 默认全部展开：这张地图的价值在于一眼看完声明链。 */
+const DEFAULT_EXPANDED = () => new Set([...NODES.keys()]);
+state.expanded = DEFAULT_EXPANDED();
+
+/** 折叠到两级，保留 shell 骨架的可见性。 */
+function collapseToTop() {
+  const set = new Set();
+  for (const node of NODES.values()) {
+    if (node.type !== 'slot') continue;
+    if (node === ROOT || depthOf(node.id) <= 1) set.add(node.id);
+  }
+  return set;
+}
+
+const narrowQuery = window.matchMedia('(max-width: 1180px)');
+
+/* ---------- DOM helpers ---------- */
+
+function el(tag, props, ...children) {
+  const node = document.createElement(tag);
+  if (props) {
+    for (const [name, value] of Object.entries(props)) {
+      if (value === undefined || value === null || value === false) continue;
+      if (name === 'text') node.textContent = value;
+      else if (name === 'className') node.className = value;
+      else if (name === 'dataset') Object.assign(node.dataset, value);
+      else if (name.startsWith('on')) node.addEventListener(name.slice(2).toLowerCase(), value);
+      else node.setAttribute(name, value === true ? '' : String(value));
+    }
+  }
+  for (const child of children.flat(Infinity)) {
+    if (child === null || child === undefined || child === false) continue;
+    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+  return node;
+}
+
+/** 把 TS 片段里的注释染成弱色，其余保持原文；只用文本节点，不拼 HTML。 */
+function codeBlock(text) {
+  const pre = el('pre', { className: 'code' });
+  const parts = String(text).split(/(\/\*\*[\s\S]*?\*\/|\/\/[^\n]*)/);
+  parts.forEach((part, index) => {
+    if (!part) return;
+    if (index % 2 === 1) pre.append(el('span', { className: 'cmt', text: part }));
+    else pre.append(document.createTextNode(part));
+  });
+  return pre;
+}
+
+function copyText(text) {
+  const done = ok => showToast(ok ? '已复制到剪贴板' : '复制失败，请手动选择文本');
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+function fallbackCopy(text, done) {
+  const area = el('textarea', { style: 'position:fixed;top:-9999px;left:-9999px;opacity:0' });
+  area.value = text;
+  document.body.append(area);
+  area.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  area.remove();
+  done(ok);
+}
+let toastTimer = 0;
+function showToast(message) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.dataset.show = 'true';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.dataset.show = 'false'; }, 1800);
+}
+
+/* ---------- 查询与筛选 ---------- */
+
+function haystack(slot) {
+  if (slot._hay) return slot._hay;
+  slot._hay = [slot.k, slot.pkg, slot.declared, slot.doc, slot.summary, slot.hookContext, slot.slotInject, slot.keyDomain, ...slot.occupants]
+    .join(' ').toLowerCase();
+  return slot._hay;
+}
+
+function slotMatches(slot) {
+  if (state.kind !== 'all' && slot.kind !== state.kind) return false;
+  if (state.scope !== 'all' && slot.scope !== state.scope) return false;
+  if (state.seat === 'empty' && slot.occupants.length !== 0) return false;
+  if (state.seat === 'used' && slot.occupants.length === 0) return false;
+  if (state.risk === 'shadow' && slot.risk !== 'shadows-shipped-ui') return false;
+  if (state.risk === 'additive' && slot.risk !== 'none') return false;
+  if (state.region !== 'all' && slot.region !== state.region) return false;
+  if (state.q && !haystack(slot).includes(state.q)) return false;
+  return true;
+}
+
+function factoryMatches(factory) {
+  if (state.q) {
+    const hay = [factory.name, factory.props, factory.package, ...factory.calls.map(call => call[0])].join(' ').toLowerCase();
+    if (!hay.includes(state.q)) return false;
+  }
+  if (state.kind !== 'all' || state.scope !== 'all') return false;
+  if (state.seat !== 'all' || state.risk !== 'all' || state.region !== 'all') return false;
+  return true;
+}
+
+const filterActive = () => state.q !== '' || state.kind !== 'all' || state.scope !== 'all'
+  || state.seat !== 'all' || state.risk !== 'all' || state.region !== 'all';
+
+/** 过滤后可见的节点集合：命中节点加上它们的祖先链。 */
+function visibleNodes() {
+  const visible = new Set();
+  const context = new Set();
+  const walk = node => {
+    let hit = node.type === 'slot' ? slotMatches(node.data) : factoryMatches(node.data);
+    for (const child of node.children) {
+      const childHit = walk(child);
+      if (childHit) {
+        visible.add(node.id);
+        if (node.type === 'slot' && !hit) context.add(node.id);
+        hit = true;
+      }
+    }
+    if (hit) visible.add(node.id);
+    return hit;
+  };
+  walk(ROOT);
+  return { visible, context };
+}
+
+function filteredSlots() {
+  return SLOTS.filter(slot => slotMatches(slot));
+}
+
+/* ---------- 渲染：概览 ---------- */
+
+function renderOverview() {
+  const slots = SLOTS.length;
+  const factories = CATALOG.factories.length;
+  const occupants = SLOTS.reduce((total, slot) => total + slot.occupants.length, 0);
+  const empty = SLOTS.filter(slot => slot.occupants.length === 0).length;
+  const shadow = SLOTS.filter(slot => slot.risk === 'shadows-shipped-ui').length;
+
+  document.getElementById('srcPath').textContent = CATALOG.source.path;
+  document.getElementById('srcMeta').textContent = `${CATALOG.source.lines} 行 / ${slots} 个槽位 / ${factories} 个工厂`;
+
+  const stats = [
+    [slots, '槽位', 'accent'],
+    [factories, '可复用工厂'],
+    [occupants, '已占用条目'],
+    [empty, '空位', 'accent'],
+    [shadow, '会替换官方 UI', 'warn'],
+    [slots - shadow, '纯叠加'],
+  ];
+  const host = document.getElementById('stats');
+  host.replaceChildren(...stats.map(([value, label, tone]) => el('div', { className: 'stat', dataset: tone ? { tone } : undefined },
+    el('b', { text: value }), el('span', { text: label }))));
+
+  const regions = document.getElementById('regions');
+  const all = el('button', {
+    type: 'button', className: 'region-chip', 'aria-pressed': 'true', dataset: { region: 'all' },
+    onclick: () => setFilter('region', 'all'),
+  }, '全部区域', el('span', { className: 'n', text: slots }));
+  regions.append(all);
+  for (const region of REGIONS) {
+    const count = SLOTS.filter(slot => slot.region === region.id).length;
+    if (!count) continue;
+    regions.append(el('button', {
+      type: 'button', className: 'region-chip', 'aria-pressed': 'false', dataset: { region: region.id },
+      onclick: () => setFilter('region', state.region === region.id ? 'all' : region.id),
+    }, region.label, el('span', { className: 'n', text: count })));
+  }
+}
+
+function renderRules() {
+  const host = document.getElementById('rulesGrid');
+  host.replaceChildren(...CATALOG.notes.map((note, index) => el('details', { className: 'rule' },
+    el('summary', {},
+      el('span', { className: 'num', text: index + 1 }),
+      el('span', { className: 'zh', text: RULE_ZH[index] || note })),
+    el('p', { className: 'en', text: note }))));
+}
+
+function renderFilters() {
+  const options = {
+    kind: [['all', '全部'], ['single', 'single'], ['list', 'list'], ['keyed', 'keyed'], ['chain', 'chain']],
+    scope: [['all', '全部'], ['root', 'root'], ['session', 'session'], ['session-maybe', 'session-maybe']],
+    seat: [['all', '全部'], ['empty', '空位'], ['used', '已占用']],
+    risk: [['all', '全部'], ['shadow', '会替换'], ['additive', '可叠加']],
+  };
+  for (const [key, entries] of Object.entries(options)) {
+    const host = document.querySelector(`[data-filter="${key}"] .segmented`);
+    host.replaceChildren(...entries.map(([value, label]) => el('button', {
+      type: 'button', 'aria-pressed': state[key] === value ? 'true' : 'false', dataset: { value },
+      onclick: () => setFilter(key, value),
+    }, label)));
+  }
+}
+
+function setFilter(key, value) {
+  state[key] = value;
+  if (key === 'region') {
+    for (const chip of document.querySelectorAll('.region-chip')) {
+      chip.setAttribute('aria-pressed', chip.dataset.region === value ? 'true' : 'false');
+    }
+  } else {
+    for (const button of document.querySelectorAll(`[data-filter="${key}"] button`)) {
+      button.setAttribute('aria-pressed', button.dataset.value === value ? 'true' : 'false');
+    }
+  }
+  render();
+}
+
+/* ---------- 渲染：树 ---------- */
+
+const CHEVRON = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg>';
+
+function kindBadge(kind) {
+  const badge = el('span', { className: 'badge', dataset: { kind } },
+    el('span', { className: 'glyph', text: KIND_GLYPH[kind] }),
+    el('b', { text: KIND_LABEL[kind] || kind }));
+  return badge;
+}
+
+function riskMark(slot) {
+  if (slot.risk !== 'shadows-shipped-ui') return null;
+  return el('span', {
+    className: 'risk-mark',
+    title: '注册到此处会替换已发布的官方 UI',
+  }, '↺ 替换');
+}
+
+function seatBadge(slot) {
+  const count = slot.occupants.length;
+  if (count === 0) {
+    return el('span', { className: 'seat', dataset: { empty: 'true' }, title: '当前没有官方条目占用，可直接叠加' },
+      el('span', { className: 'dot', dataset: { hollow: 'true' } }), '空位');
+  }
+  return el('span', { className: 'seat', title: `${count} 个已注册条目` }, el('span', { className: 'dot' }), `${count}`);
+}
+
+function toggle(id) {
+  if (filterActive()) { showToast('筛选时层级保持展开'); return; }
+  if (state.expanded.has(id)) state.expanded.delete(id);
+  else state.expanded.add(id);
+  renderTree();
+}
+
+/** 工厂节点与槽位节点共用一个层级，但用 Factory 标签区分身份。 */
+function factoryRow(factory) {
+  const node = NODES.get(factory.name);
+  const expanded = filterActive() || state.expanded.has(factory.name);
+  const selected = state.selected === factory.name;
+  const li = el('li');
+  li.append(el('div', {
+    className: 'node-row',
+    dataset: { selected: selected ? 'true' : 'false' },
+  },
+    el('button', {
+      type: 'button', className: 'twisty', 'aria-expanded': expanded ? 'true' : 'false',
+      'aria-label': `${expanded ? '折叠' : '展开'} ${factory.name}`,
+      onclick: () => toggle(factory.name),
+    }),
+    el('button', {
+      type: 'button', className: 'node-main', 'aria-current': selected ? 'true' : 'false',
+      onclick: () => select(factory.name, true),
+    },
+      el('span', { className: 'key' }, el('span', { className: 'factory-tag', text: 'Factory' }), factory.name),
+      el('span', { className: 'node-meta' },
+        el('span', { className: 'scope-tag', text: SCOPE_LABEL[factory.scope] || factory.scope }),
+        el('span', { className: 'seat', title: '工厂的声明在定义存续期间有效' }, `${node.children.length} 子槽位`)))));
+  if (expanded && node.children.length) {
+    const ul = el('ul');
+    for (const child of node.children) ul.append(renderTreeNode(child, 1));
+    li.append(ul);
+  }
+  return li;
+}
+
+function renderTreeNode(node, depth) {
+  const slot = node.data;
+  const li = el('li');
+  const expanded = filterActive() || state.expanded.has(node.id);
+  const row = el('div', {
+    className: 'node-row',
+    dataset: { selected: state.selected === slot.k ? 'true' : 'false', context: node._context ? 'true' : 'false' },
+  });
+  if (node.children.length) {
+    row.append(el('button', {
+      type: 'button', className: 'twisty', 'aria-expanded': expanded ? 'true' : 'false',
+      'aria-label': `${expanded ? '折叠' : '展开'} ${slot.k}`,
+      onclick: () => toggle(node.id),
+    }));
+  } else {
+    row.append(el('span', { className: 'twisty', dataset: { leaf: 'true' }, 'aria-hidden': 'true' }));
+  }
+  row.append(el('button', {
+    type: 'button', className: 'node-main',
+    'aria-current': state.selected === slot.k ? 'true' : 'false',
+    title: slot.summary || slot.k,
+    onclick: () => select(slot.k, true),
+  },
+    el('span', { className: 'key', text: slot.k }),
+    el('span', { className: 'node-meta' },
+      kindBadge(slot.kind),
+      el('span', { className: 'scope-tag', text: SCOPE_LABEL[slot.scope] || slot.scope }),
+      seatBadge(slot),
+      riskMark(slot))));
+  li.append(row);
+
+  if (expanded && node.children.length) {
+    const ul = el('ul');
+    for (const child of node.children) ul.append(renderTreeNode(child, depth + 1));
+    li.append(ul);
+  }
+  return li;
+}
+
+function renderTree() {
+  const host = document.getElementById('treeView');
+  const { visible, context } = visibleNodes();
+  for (const node of NODES.values()) node._context = context.has(node.id) || !visible.has(node.id);
+  const list = el('ul', { className: 'tree' });
+  list.append(renderTreeNode(ROOT, 0));
+  const shownFactories = FACTORY_ROOTS.filter(node => filterActive() ? factoryVisible(node) : true);
+  if (shownFactories.length) {
+    list.append(el('li', { className: 'tree-divider' }, `可复用工厂 · ${shownFactories.length}`));
+    for (const node of shownFactories) list.append(factoryRow(node.data));
+  }
+  host.replaceChildren(list);
+  return visible.size;
+}
+
+/** 工厂自身命中关键词，或它的任一子槽位命中。 */
+function factoryVisible(node) {
+  if (factoryMatches(node.data)) return true;
+  return node.children.some(child => slotMatches(child.data));
+}
+
+/* ---------- 渲染：索引表 ---------- */
+
+const COLUMNS = [
+  { id: 'key', label: '槽位键', sort: 'key', base: 'key' },
+  { id: 'kind', label: '基数', sort: 'kind', base: 'nowrap' },
+  { id: 'scope', label: '作用域', sort: 'scope', base: 'nowrap' },
+  { id: 'seat', label: '占用', sort: 'occupants', base: 'num' },
+  { id: 'risk', label: '替换风险', sort: 'risk', base: 'nowrap' },
+  { id: 'declared', label: '声明者', sort: 'parent', base: 'dim' },
+];
+
+function sortedSlots() {
+  const rows = filteredSlots();
+  const { col, dir } = state.sort;
+  rows.sort((a, b) => {
+    let left;
+    let right;
+    if (col === 'key') { left = a.k; right = b.k; }
+    else if (col === 'kind') { left = a.kind; right = b.kind; }
+    else if (col === 'scope') { left = a.scope; right = b.scope; }
+    else if (col === 'occupants') { left = a.occupants.length; right = b.occupants.length; }
+    else if (col === 'risk') { left = a.risk; right = b.risk; }
+    else { left = a.parent || ''; right = b.parent || ''; }
+    if (left === right) return a.k.localeCompare(b.k) * dir;
+    if (typeof left === 'number') return (left - right) * dir;
+    return String(left).localeCompare(String(right)) * dir;
+  });
+  return rows;
+}
+
+function renderTable() {
+  const host = document.getElementById('tableView');
+  const rows = sortedSlots();
+  const thead = el('thead', {}, el('tr', {}, COLUMNS.map(column => {
+    const active = state.sort.col === column.sort;
+    return el('th', {
+      scope: 'col',
+      'aria-sort': active ? (state.sort.dir === 1 ? 'ascending' : 'descending') : 'none',
+    }, el('button', {
+      type: 'button',
+      onclick: () => {
+        if (state.sort.col === column.sort) state.sort.dir *= -1;
+        else state.sort = { col: column.sort, dir: 1 };
+        render();
+      },
+    }, column.label, el('span', { className: 'arrow', text: active ? (state.sort.dir === 1 ? '▲' : '▼') : '↕' })));
+  })));
+
+  const tbody = el('tbody');
+  for (const slot of rows) {
+    const tr = el('tr', {
+      dataset: { selected: state.selected === slot.k ? 'true' : 'false' },
+      tabindex: '0',
+      onclick: () => select(slot.k, true),
+      onkeydown: event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(slot.k, true); }
+      },
+    },
+      el('td', { className: 'key', text: slot.k }),
+      el('td', { className: 'nowrap' }, kindBadge(slot.kind)),
+      el('td', { className: 'nowrap' }, el('span', { className: 'scope-tag', text: SCOPE_LABEL[slot.scope] || slot.scope })),
+      el('td', { className: 'num' }, slot.occupants.length === 0
+        ? el('span', { className: 'pill', dataset: { tone: 'ok' }, text: '空位' })
+        : String(slot.occupants.length)),
+      el('td', { className: 'nowrap' }, slot.risk === 'shadows-shipped-ui'
+        ? el('span', { className: 'pill', dataset: { tone: 'warn' }, text: '会替换' })
+        : el('span', { className: 'pill', text: '可叠加' })),
+      el('td', { className: 'dim' }, slot.parent
+        ? el('span', {}, slot.parent, el('span', { className: 'mono', text: `  ${slot.pkg}` }))
+        : el('span', { text: '运行时内置' })));
+    tbody.append(tr);
+  }
+  const table = el('table', { className: 'index' }, thead, tbody);
+  host.replaceChildren(el('div', { className: 'table-scroll' }, table));
+}
+
+/* ---------- 渲染：详情 ---------- */
+
+function exampleFor(slot) {
+  if (slot && slot.example) return slot.example;
+  const key = slot.k;
+  const options = [`name: '${key}'`];
+  if (slot.kind === 'keyed') options.push("key: '<one key the owner dispatches>'");
+  if (slot.kind === 'list') options.push("id: 'my-entry'", 'order: 100', "label: 'My entry'");
+  if (slot.kind === 'chain') options.push('select: owner => null');
+  return `return {\n  inject: ['slots'],\n  apply(ctx) {\n    ctx.slots.inject('${key}', () => ctx.slots.register(\n      { ${options.join(', ')} },\n      () => React.createElement('div', null, 'hello'),\n    ))\n  },\n}`;
+}
+
+function parseKeyDomain(text) {
+  if (!text) return null;
+  const marker = ', already taken: ';
+  const index = text.indexOf(marker);
+  if (index === -1) return { open: text.startsWith('open:'), note: text.replace(/^open:\s*/, ''), taken: [] };
+  const head = text.slice(0, index);
+  const tail = text.slice(index + marker.length);
+  return {
+    open: head.startsWith('open:'),
+    note: head.replace(/^open:\s*/, ''),
+    taken: tail === 'none are taken yet' ? [] : tail.split(', ').filter(Boolean),
+  };
+}
+
+function section(title, extra, ...body) {
+  return el('section', { className: 'sect' },
+    el('h3', {}, title, extra ? el('span', { className: 'count', text: extra }) : undefined),
+    ...body);
+}
+
+function collapsibleList(items, renderItem, limit) {
+  const wrap = el('div');
+  let expanded = false;
+  const draw = () => {
+    const shown = expanded ? items : items.slice(0, limit);
+    wrap.replaceChildren(...shown.map(renderItem));
+    if (items.length > limit) {
+      const button = el('button', {
+        type: 'button', className: 'link-btn more-btn',
+        onclick: () => { expanded = !expanded; draw(); },
+      }, expanded ? '收起' : `展开全部 ${items.length} 项`);
+      wrap.append(button);
+    }
+  };
+  draw();
+  return wrap;
+}
+
+function occupantRow(text) {
+  const space = text.indexOf(' ');
+  const pkg = space === -1 ? '' : text.slice(0, space);
+  const what = space === -1 ? text : text.slice(space + 1);
+  return el('li', { className: 'occupant', title: text },
+    pkg ? el('span', { className: 'pkg', text: pkg }) : null,
+    el('span', { className: 'what', text: what || text }));
+}
+
+/** 选中时展开祖先链，保证被选中的行在树里可见。 */
+function revealAncestors(key) {
+  let node = NODES.get(key);
+  while (node && node.data && node.data.parent) {
+    state.expanded.add(node.data.parent);
+    node = NODES.get(node.data.parent);
+  }
+}
+
+function select(key, openSheet) {
+  state.selected = key;
+  revealAncestors(key);
+  if (narrowQuery.matches && openSheet) state.sheetOpen = true;
+  try { history.replaceState(null, '', `#${encodeURIComponent(key)}`); } catch { /* file:// 下可能拒绝改写历史 */ }
+  render();
+  if (narrowQuery.matches && openSheet) document.getElementById('detailClose')?.focus({ preventScroll: true });
+  else if (state.view === 'tree') {
+    document.querySelector(`#treeView [aria-current="true"]`)?.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function closeSheet() {
+  state.sheetOpen = false;
+  render();
+}
+
+function renderDetail() {
+  const host = document.getElementById('detail');
+  const key = state.selected;
+  host.dataset.open = narrowQuery.matches && state.sheetOpen ? 'true' : 'false';
+
+  if (!key) {
+    host.dataset.empty = 'true';
+    const empty = SLOTS.filter(slot => slot.occupants.length === 0)
+      .sort((a, b) => depthOf(a.k) - depthOf(b.k) || a.k.localeCompare(b.k))
+      .slice(0, 4);
+    host.replaceChildren(el('div', { className: 'guide' },
+      el('h2', { text: '选择一个槽位' }),
+      el('p', { text: '左侧按声明层级列出全部槽位。点任意键名，这里显示它的注册参数、组件收到的 props、已占用条目和可复制的示例。' }),
+      el('ol', {},
+        el('li', { text: '虚线竖线表示“谁声明了这个位置”：父级条目没挂载时，子槽位根本不存在。' }),
+        el('li', { text: '「空位」表示没有官方条目占用，注册即为唯一实现。' }),
+        el('li', { text: '「↺ 替换」表示注册到此处会顶掉已发布的官方 UI。' }),
+        el('li', { text: '首字母 S / L / K / C 分别对应 single、list、keyed、chain 四种基数。' })),
+      el('div', { className: 'suggest' },
+        el('span', { text: '从这些空位开始' }),
+        empty.map(slot => el('button', {
+          type: 'button', className: 'suggest-btn',
+          onclick: () => select(slot.k, true),
+        }, slot.k, kindBadge(slot.kind))))));
+    return;
+  }
+
+  if (FACTORY_BY_NAME.has(key)) {
+    renderFactoryDetail(host, FACTORY_BY_NAME.get(key));
+    return;
+  }
+
+  const slot = SLOT_BY_KEY.get(key);
+  if (!slot) return;
+  const children = NODES.get(key).children;
+
+  const body = el('div', { className: 'detail-body' });
+
+  body.append(section('说明', null, el('p', { className: 'prose', text: unwrapDoc(slot.doc) })));
+
+  const declared = el('div', { className: 'declare-line' });
+  if (slot.declaredSource === 'runtime') {
+    declared.append(el('span', { text: '运行时内置：' }), el('code', { text: 'root' }), el('span', { text: '由渲染器直接渲染，始终存在。' }));
+  } else {
+    declared.append(
+      el('span', { text: slot.declaredSource === 'factory' ? '由工厂声明：' : '由条目声明：' }),
+      el('button', {
+        type: 'button', className: 'parent-link', title: '查看声明者',
+        onclick: () => select(slot.parent, true),
+      }, slot.parent),
+      el('span', { className: 'mono', text: slot.pkg }),
+      el('span', { text: '只有它挂载时本槽位才存在。' }));
+  }
+  body.append(section('声明者', null, declared));
+
+  const occupants = slot.occupants.length
+    ? collapsibleList(slot.occupants, occupantRow, 10)
+    : el('div', { className: 'occupant-none', text: '没有官方占用，注册即为唯一实现' });
+  body.append(section('已占用', slot.occupants.length ? `${slot.occupants.length} 条` : null, occupants));
+
+  const domain = parseKeyDomain(slot.keyDomain);
+  if (domain) {
+    const wrap = el('div');
+    wrap.append(el('p', { className: 'sect-hint', text: domain.open
+      ? '开放键域：owner 分发任意字符串键，没有编译期键表。'
+      : '固定键域：键由 owner 的键表限定。' }));
+    if (domain.note && !domain.open) wrap.prepend(codeBlock(domain.note));
+    if (domain.taken.length) {
+      wrap.append(el('div', { className: 'key-chips', style: 'margin-top:8px' },
+        ...domain.taken.map(item => el('span', { className: 'key-chip', text: item }))));
+    } else if (domain.open) {
+      wrap.append(el('p', { className: 'sect-hint', text: '当前没有键被占用。' }));
+    }
+    body.append(section('你的座位键', domain.taken.length ? `已占 ${domain.taken.length}` : null, wrap));
+  }
+
+  const optionNames = OPTION_ORDER[slot.kind] || [];
+  if (optionNames.length) {
+    body.append(section('注册参数', null,
+      el('ul', { className: 'opt-list' }, ...optionNames.map(name => {
+        const doc = CATALOG.optionDocs[name];
+        return el('li', { className: 'opt' },
+          el('span', { className: 'name', text: name }),
+          el('span', { className: 'req', text: doc.requirement }),
+          el('span', { className: 'type', text: doc.type }),
+          el('span', { className: 'doc', text: doc.doc }));
+      })),
+      el('p', { className: 'sect-hint', text: 'name 必填，值为本槽位键。' })));
+  } else {
+    body.append(section('注册参数', null,
+      el('p', { className: 'sect-hint', text: '只接受 name。single 是替换位：你的注册会顶掉渲染优先级更低的条目。' })));
+  }
+
+  if (slot.owner.length) {
+    body.append(section('owner 传入的 props', null,
+      ...slot.owner.map(text => codeBlock(text)),
+      slot.ownerRefs.length ? el('p', { className: 'sect-hint', text: `引用的类型：${slot.ownerRefs.join('、')}` }) : null));
+  } else {
+    body.append(section('owner 传入的 props', null,
+      el('p', { className: 'sect-hint', text: 'owner 不传额外值，组件只从框架钩子取数据。' })));
+  }
+
+  const props = (CATALOG.scopeProps[slot.scope] || []).map(entry => {
+    const at = entry.indexOf(': ');
+    return at === -1 ? [entry, ''] : [entry.slice(0, at), entry.slice(at + 2)];
+  });
+  body.append(section('框架注入的 props', `${props.length} 项`,
+    el('dl', { className: 'props-grid' }, ...props.flatMap(([name, type]) => [el('dt', { text: name }), el('dd', { text: type })])),
+    el('p', { className: 'sect-hint', text: `按作用域 ${slot.scope} 注入；选择器钩子要传 selector。` })));
+
+  if (slot.slotInject || slot.hookContext) {
+    const parts = [];
+    if (slot.slotInject) parts.push(section('槽位注入面', null, codeBlock(slot.slotInject),
+      el('p', { className: 'sect-hint', text: 'owner 声明的注入面，槽位内每个条目都会收到。' })));
+    if (slot.hookContext) parts.push(section('hook 上下文', null, codeBlock(slot.hookContext),
+      el('p', { className: 'sect-hint', text: '槽位级钩子工厂额外收到的每次渲染上下文。' })));
+    for (const part of parts) body.append(part);
+  }
+
+  if (children.length) {
+    body.append(section('本槽位还声明了子槽位', `${children.length} 个`,
+      el('div', { className: 'key-chips' }, ...children.map(child => el('button', {
+        type: 'button', className: 'key-chip', style: 'cursor:pointer',
+        onclick: () => select(child.id, true),
+      }, child.id)))));
+  }
+
+  body.append(section('最小可用示例', null,
+    codeBlock(exampleFor(slot)),
+    el('div', { className: 'copy-row' },
+      el('button', {
+        type: 'button', className: 'copy-btn',
+        onclick: event => {
+          copyText(exampleFor(slot));
+          const button = event.currentTarget;
+          button.dataset.done = 'true';
+          button.textContent = '已复制';
+          setTimeout(() => { button.dataset.done = 'false'; button.textContent = '复制示例'; }, 1600);
+        },
+      }, '复制示例'),
+      el('span', { className: 'src', text: `${slot.file}:${slot.line}` }))));
+
+  const chips = el('div', { className: 'detail-chips' },
+    kindBadge(slot.kind),
+    el('span', { className: 'scope-tag', text: SCOPE_LABEL[slot.scope] || slot.scope }),
+    slot.risk === 'shadows-shipped-ui'
+      ? el('span', { className: 'pill', dataset: { tone: 'warn' }, text: '会替换官方 UI' })
+      : el('span', { className: 'pill', text: '可叠加' }));
+
+  const head = el('div', { className: 'detail-head' },
+    el('button', { type: 'button', className: 'detail-close', id: 'detailClose', 'aria-label': '关闭详情', onclick: closeSheet }, '×'),
+    el('div', { className: 'kicker' }, el('span', { text: '槽位' }), el('span', { text: '·' }), el('span', { text: slot.region })),
+    el('h2', { className: 'detail-key', text: slot.k }),
+    chips);
+
+  host.replaceChildren(head, body);
+  host.dataset.empty = 'false';
+}
+
+function depthOf(key) {
+  let depth = 0;
+  let node = NODES.get(key);
+  while (node && node.data.parent) { depth += 1; node = NODES.get(node.data.parent); }
+  return depth;
+}
+
+function renderFactoryDetail(host, factory) {
+  const node = NODES.get(factory.name);
+  const body = el('div', { className: 'detail-body' });
+  body.append(section('说明', null,
+    el('p', { className: 'prose', text: '可复用工厂：为一个组件或装配体保留的子槽位声明，注册一次就在每个调用点复用。它本身不是槽位，不通过 ctx.slots.register 占用。' })));
+  body.append(section('props 输入', null, codeBlock(factory.props)));
+  body.append(section('调用点', `${factory.calls.length} 处`,
+    el('ul', { className: 'occupant-list' }, ...factory.calls.map(([file, line]) =>
+      el('li', { className: 'occupant' }, el('span', { className: 'what', text: `${file}:${line}` }))))));
+  body.append(section('它声明的子槽位', `${node.children.length} 个`,
+    el('div', { className: 'key-chips' }, ...node.children.map(child => el('button', {
+      type: 'button', className: 'key-chip', style: 'cursor:pointer',
+      onclick: () => select(child.id, true),
+    }, child.id)))));
+
+  host.replaceChildren(
+    el('div', { className: 'detail-head' },
+      el('button', { type: 'button', className: 'detail-close', id: 'detailClose', 'aria-label': '关闭详情', onclick: closeSheet }, '×'),
+      el('div', { className: 'kicker' }, el('span', { text: '工厂' }), el('span', { text: '·' }), el('span', { text: factory.package })),
+      el('h2', { className: 'detail-key', text: factory.name }),
+      el('div', { className: 'detail-chips' }, el('span', { className: 'scope-tag', text: SCOPE_LABEL[factory.scope] || factory.scope }))),
+    body);
+  host.dataset.empty = 'false';
+}
+
+/* ---------- 主渲染 ---------- */
+
+function render() {
+  const matches = filteredSlots().length;
+  document.getElementById('matchCount').textContent = matches;
+  document.getElementById('totalCount').textContent = SLOTS.length;
+  document.getElementById('filterNote').textContent = filterActive()
+    ? (state.q ? `搜索“${state.q}”` : '筛选生效中，层级保持展开')
+    : '';
+
+  const treeView = document.getElementById('treeView');
+  const tableView = document.getElementById('tableView');
+  treeView.hidden = state.view !== 'tree';
+  tableView.hidden = state.view !== 'table';
+
+  if (state.view === 'tree') {
+    if (matches === 0 && filterActive()) {
+      treeView.replaceChildren();
+    } else {
+      renderTree();
+    }
+  } else {
+    renderTable();
+  }
+  document.getElementById('noResults').hidden = !(matches === 0 && filterActive());
+  for (const button of document.querySelectorAll('[data-view]')) {
+    button.setAttribute('aria-pressed', button.dataset.view === state.view ? 'true' : 'false');
+  }
+  renderDetail();
+}
+
+/* ---------- 事件 ---------- */
+
+const searchInput = document.getElementById('search');
+const searchClear = document.getElementById('searchClear');
+
+searchInput.addEventListener('input', () => {
+  state.q = searchInput.value.trim().toLowerCase();
+  searchClear.hidden = searchInput.value === '';
+  render();
+});
+searchClear.addEventListener('click', () => {
+  searchInput.value = '';
+  state.q = '';
+  searchClear.hidden = true;
+  searchInput.focus();
+  render();
+});
+
+for (const button of document.querySelectorAll('[data-view]')) {
+  button.addEventListener('click', () => { state.view = button.dataset.view; render(); });
+}
+
+document.getElementById('expandAll').addEventListener('click', () => {
+  if (filterActive()) { showToast('先清除筛选再展开'); return; }
+  for (const node of NODES.values()) state.expanded.add(node.id);
+  renderTree();
+});
+document.getElementById('collapseAll').addEventListener('click', () => {
+  if (filterActive()) { showToast('先清除筛选再折叠'); return; }
+  state.expanded = collapseToTop();
+  renderTree();
+});
+
+/* 主题 */
+
+const themeButton = document.getElementById('themeBtn');
+const themeLabel = document.getElementById('themeLabel');
+const savedTheme = (() => {
+  try { return localStorage.getItem('dsh-slot-map-theme'); } catch { return null; }
+})();
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  themeLabel.textContent = theme === 'dark' ? '浅色' : '深色';
+  themeButton.setAttribute('aria-label', theme === 'dark' ? '切换到浅色配色' : '切换到深色配色');
+  try { localStorage.setItem('dsh-slot-map-theme', theme); } catch { /* 隐私模式下忽略 */ }
+}
+applyTheme(savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : (prefersDark ? 'dark' : 'light'));
+themeButton.addEventListener('click', () => {
+  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+});
+
+/* 键盘 */
+
+document.addEventListener('keydown', event => {
+  if (event.key === '/' && document.activeElement !== searchInput && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
+    event.preventDefault();
+    searchInput.focus();
+    return;
+  }
+  if (event.key === 'Escape') {
+    if (state.sheetOpen) { closeSheet(); return; }
+    if (document.activeElement === searchInput && searchInput.value) {
+      searchInput.value = '';
+      state.q = '';
+      searchClear.hidden = true;
+      render();
+    }
+  }
+});
+
+narrowQuery.addEventListener('change', render);
+
+/* 初始定位：支持 #槽位键 深链 */
+
+function boot() {
+  renderOverview();
+  renderRules();
+  renderFilters();
+  applyHash();
+  render();
+}
+
+/** 支持用 #槽位键 直接打开某一条，也跟随手动改写的 hash。 */
+function applyHash() {
+  const hash = decodeURIComponent(location.hash.replace(/^#/, ''));
+  if (!hash) return;
+  if (!SLOT_BY_KEY.has(hash) && !FACTORY_BY_NAME.has(hash)) return;
+  if (state.selected === hash) return;
+  state.selected = hash;
+  state.sheetOpen = false;
+  revealAncestors(hash);
+}
+
+window.addEventListener('hashchange', () => { applyHash(); render(); });
+
+boot();
+</script>
+</body>
+</html>
