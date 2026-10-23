@@ -15,6 +15,7 @@ repo-root.local.json
 
 # Agent instructions are local guidance, never published with this repository.
 AGENTS.md
+.agents/
 
 # Editor and OS noise
 .vscode/
